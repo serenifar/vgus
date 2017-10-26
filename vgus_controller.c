@@ -111,7 +111,7 @@ void close_connect(struct send_info *info)
 }
 
 
-int send_date(struct send_info *info)
+int send_data(struct send_info *info)
 {
 	int wlen;
 
@@ -282,6 +282,7 @@ static void up_current(int n)
 		return ;
 	current_number += n;
 }
+#define current_clear()  current_number = 0
 static int set_curve_values(struct send_info *info, int *buffer, int len, int curve)
 {
 	char buf[255] = {0};
@@ -421,13 +422,13 @@ int test_main(int argc, char **argv)
 		return 0;
 	}
 	set_title_vari(info, "Xenomai Interrupt Latency");
-	send_date(info);
+	send_data(info);
 	curve_init(info);
-	send_date(info);
+	send_data(info);
 	set_axis(info);
 	set_frame(info);
 	set_axis_value(info);
-	send_date(info);
+	send_data(info);
 	unsigned int data;	
 	while (1){
 		data = (unsigned int)random();
@@ -435,7 +436,7 @@ int test_main(int argc, char **argv)
 		if (data < 500)
 			data += 500;
 		update_curve(info, data);
-		send_date(info);
+		send_data(info);
 		sleep(1);
 	}
 
@@ -445,12 +446,18 @@ int test_main(int argc, char **argv)
 void vgus_init(struct send_info *info)
 {
 	set_title_vari(info, "Xenomai Interrupt Latency");
-	send_date(info);
+	send_data(info);
 	curve_init(info);
-	send_date(info);
+	send_data(info);
 	set_axis(info);
 	set_frame(info);
 	set_axis_value(info);
-	send_date(info);
+	send_data(info);
+	current_clear();
+	curve_clear_data(info, 1);
+	send_data(info);
+	update_curve(info, 1500);
+	send_data(info);
+
 }
 
