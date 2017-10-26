@@ -10,6 +10,7 @@
 #include <sys/select.h>
 #include <unistd.h>
 #include <time.h>
+#include "vgus_controller.h"
 
 #define pr() //printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 #define DEF_BUFF_SIZE 1024
@@ -59,17 +60,6 @@ static int create_sk_cli(char *addr, char *port)
 	return skfd;
 }
 
-struct send_info
-{
-	int skfd;
-	int buf_len;
-	int len;
-	char *buf;
-	char *ip;
-	char *port;
-};
-
-
 static struct send_info *create_connect(char *ip, char *port)
 {
 	struct send_info *info = malloc(sizeof(struct send_info));
@@ -113,7 +103,7 @@ static int copy_to_buf(struct send_info *info, char *buffer, int len)
 	return 0;	
 }
 
-static void close_connect(struct send_info *info)
+void close_connect(struct send_info *info)
 {
 	close(info->skfd);
 	free(info->buf);
@@ -121,7 +111,7 @@ static void close_connect(struct send_info *info)
 }
 
 
-static int send_date(struct send_info *info)
+int send_date(struct send_info *info)
 {
 	int wlen;
 
@@ -134,7 +124,7 @@ static int send_date(struct send_info *info)
 	return wlen;
 }	
 
-static struct send_info* open_port(char *ip, char *port)
+struct send_info* open_port(char *ip, char *port)
 {
 
 	struct send_info *info;
@@ -204,12 +194,12 @@ static void set_frame(struct send_info *info)
 	set_vari_cmd(buf, 0x82);
         set_graph_cmd(buf, 0x0a);
 	unsigned short y = 140;
-	unsigned short x = 125;
+	unsigned short x = 75;
 	int i = 0;
 	for (;y < 440; y += 30)
 		set_pixel_pair_n(buf, 55, y, 755, y, color0, i++);
-	for (; x <= 755 ; x += 70)
-		set_pixel_pair_n(buf, x, 140, x, 440,  color1, i++);
+//	for (; x <= 755 ; x += 20)
+//		set_pixel_pair_n(buf, x, 140, x, 440,  color1, i++);
 	len = i * 10 + 10;
 	set_vari_len(buf, len - 3);
 	set_graph_num(buf, i);
@@ -270,12 +260,12 @@ static void set_axis_value(struct send_info *info)
 		value += 250;	
 		copy_to_buf(info, buf, len);
 	}
-	value = 0;
+	value = 350;
 	addr = axis_value_vari_addr + ( 11 * 0x20);
 	for (i = 0; i < 11; i++){
 		set_vari_head(buf, (addr + (i * 0x20)));
 		set_vari_value(buf, value);
-		value += 2;	
+		value -= 35;	
 		copy_to_buf(info, buf, len);
 	}
 		
@@ -336,7 +326,7 @@ static int set_curve_value(struct send_info *info, int data, int curve)
 #define Y_hight_pixel  300
 #define X_start_pixel  55
 #define X_width_pixel  700
-#define X_interval     35
+#define X_interval     20
 #define curve_data_source 1
 
 static void set_current_value(struct send_info *info, int data)
@@ -352,9 +342,10 @@ static void set_current_value(struct send_info *info, int data)
 	}
 
 //	y = (data & 0xffff - Y_min) / ((Y_max - Y_min) / Y_hight_pixel) ;
-	y1 = (float)((data & 0xffff ) * (Y_hight_pixel)) / (Y_max - Y_min);
+	y1 = (((float)(data & 0xffff ) -Y_min) * (Y_hight_pixel)) / (Y_max - Y_min);
 	y = Y_hight_pixel - (unsigned short)y1 + Y_start_pixel;
 //	y -= 8;
+	x -= 8;
         char buf[32] = {0};
 	set_vari_cmd(buf, 0x82);
 	len = 8;	
@@ -372,7 +363,7 @@ static void set_current_value(struct send_info *info, int data)
 	copy_to_buf(info, buf, len);	
 }
 
-static void update_curve(struct send_info *info, int data)
+void update_curve(struct send_info *info, int data)
 {
 	set_curve_value(info, data, curve_data_source);
 	set_current_value(info, data);
@@ -412,12 +403,17 @@ static void curve_init(struct send_info *info)
 	copy_to_buf(info, buf, len);	
 }
 
-
+void curve_clear_data(struct send_info *info, int ch)  // ch = 0 : all ch; 
+{
+	char buf[] = {0xa5, 0x5a, 0x03, 0x80, 0xeb, 0x55};
+	buf[5] += ch;
+	copy_to_buf(info, buf, 6);
+}
 
 
 #define mdelay() usleep(15*1000)
 
-int main(int argc, char **argv)
+int test_main(int argc, char **argv)
 {
 	struct send_info *info;
 	info = open_port("10.193.20.217", "23");
@@ -446,42 +442,15 @@ int main(int argc, char **argv)
 	close_connect(info);
 }
 
-//int main(int argc, char **argv)
-//{
-//
-//	int j = 0;
-//	long long last_time_in_mill = 0;
-//	open_port("10.193.20.217", "26");
-//	struct timeval tv;
-//	long long time_in_mill;
-//	int pwm = atoi(argv[1]);
-//	int period = atoi(argv[2]) * 5;
-//	int i = pwm;
-//	gettimeofday(&tv, NULL);
-//	time_in_mill =  (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000;
-//	last_time_in_mill = time_in_mill;
-//
-//	while(1){
-//		if (j < period){
-//			j++;
-//			if(i > 0)
-//				i--;
-//		}
-//		else{ 
-//			j = 0;
-//			i = pwm;
-//		}
-//
-//		set_relay(0, i);
-//			mdelay();
-//		gettimeofday(&tv, NULL);
-//		time_in_mill =  (tv.tv_sec) * 1000 + (tv.tv_usec) / 1000;
-////		printf("%.9lld, %d\n", time_in_mill - last_time_in_mill, get_temperature());
-//		printf("%.9lld\n", time_in_mill - last_time_in_mill);
-//		if(time_in_mill - last_time_in_mill > 200*5*60*3)
-//			break;
-//	}
-//}
-
-
+void vgus_init(struct send_info *info)
+{
+	set_title_vari(info, "Xenomai Interrupt Latency");
+	send_date(info);
+	curve_init(info);
+	send_date(info);
+	set_axis(info);
+	set_frame(info);
+	set_axis_value(info);
+	send_date(info);
+}
 
