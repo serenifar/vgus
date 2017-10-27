@@ -3,9 +3,10 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <unistd.h>
 #include <sys/time.h>
 #include <sys/select.h>
 #include <unistd.h>
@@ -413,8 +414,8 @@ void curve_clear_data(struct send_info *info, int ch)  // ch = 0 : all ch;
 
 
 #define mdelay() usleep(15*1000)
-
-int test_main(int argc, char **argv)
+#define FIFO_FILE "/tmp/latency"
+int main(int argc, char **argv)
 {
 	struct send_info *info;
 	info = open_port("10.193.20.217", "23");
@@ -430,14 +431,39 @@ int test_main(int argc, char **argv)
 	set_axis_value(info);
 	send_data(info);
 	unsigned int data;	
+	int fd; 
+	if ((fd = access(FIFO_FILE, F_OK)) < 0){
+		fd = mkfifo(FIFO_FILE, 0666);
+		if (fd < 0)
+			return -1;
+	}
+	else {
+	//	struct stat buf;
+	//	if((fd = lstat(argv[1],&buf)) < 0)
+	//	       return -2;
+	//	if(S_ISFIFO(buf.st_mode) == 0)
+	//		return -3;	
+	}
+
+
+	if (daemon(0, 1) < 0){
+		return -4;
+	}
+	char buf[16];
+	int num;
 	while (1){
-		data = (unsigned int)random();
-		data = (data ) % 3000 ;
-		if (data < 500)
-			data += 500;
+		if ((fd = open(FIFO_FILE, O_RDONLY)) < 0){
+			return -6;
+		}
+		num = read(fd, buf, 16);
+		if (strncmp("exit", buf, 4) == 0)
+			return 0;
+		data = atoi(buf);
+		if(data > Y_max || data < Y_min)
+			continue;
 		update_curve(info, data);
 		send_data(info);
-		sleep(1);
+		close(fd);
 	}
 
 	close_connect(info);
