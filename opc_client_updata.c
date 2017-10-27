@@ -51,7 +51,18 @@ int main(int argc, char **argv)
 				-s : updata the latency\n \
 				-c: end the opc-server\n \
 				-r: redraw the screen\n";
-	if (argc > 2){
+	if (argc == 2){
+		if (argv[1][0] != '-'){
+			cmd |= 1 << UPDATA_CMD; 
+			data = atoi(argv[1]);
+			if (data > Y_max || data < Y_min){
+				printf("Error: the range of -s is %d - %d\n", Y_min, Y_max);
+				return 0;
+			}
+		}
+	}	
+
+	if (argc > 1 && !isCMD(UPDATA_CMD)){
 		while ((ch = getopt(argc, argv, "u:i:p:cs:r")) != -1){
 			switch(ch){
 				case 'u':
@@ -67,7 +78,7 @@ int main(int argc, char **argv)
 					cmd |= 1 << SET_PORT;
 					break;
 				case 'c':
-					cmd |= END_SERVER_CMD;
+					cmd |= 1 << END_SERVER_CMD;
 					break;
 				case 's':
 					data = atoi(argv[1]);
@@ -78,22 +89,13 @@ int main(int argc, char **argv)
 				       cmd |=  1 << USE_CONF_URI_CMD;	
 					break;
 				case 'r':
-					cmd = 1 << REDRAW_CMD;
+					cmd |= 1 << REDRAW_CMD;
+					break;
 								
-				default:
-					printf("%s", usage);
-					return 0;
 			}
 		}
-	}else if (argc == 2){
-		cmd |= 1 << UPDATA_CMD; 
-		data = atoi(argv[1]);
-		if (data > Y_max || data < Y_min){
-			printf("Error: the range of -s is %d - %d\n", Y_min, Y_max);
-			return 0;
-		}
-	}	
-
+	}
+	
 	if(cmd == 0){
 		printf("%s", usage);
 		return 0;
@@ -109,7 +111,7 @@ int main(int argc, char **argv)
 		if (config_fd < 0 ){
 			config_fd = open("./latency.con", O_RDWR | O_CREAT);
 			strcpy(buf + 4, uri);
-			write(config_fd, buf, sizeof(buf));
+			write(config_fd, buf, strlen(buf));
 			close(config_fd);
 		}
 		else{
@@ -127,7 +129,8 @@ int main(int argc, char **argv)
 			 strcpy(buf1 + index, "uri:");
 			 index += 4;
 			 strcpy(buf1 + index, uri);
-			 write(config_fd, buf, sizeof(buf));
+			 index += strlen(uri);
+			 write(config_fd, buf1, index);
 			 close(config_fd);
 		}
 		return 0;
@@ -142,7 +145,7 @@ int main(int argc, char **argv)
 		if (config_fd < 0 ){
 			config_fd = open("./latency.con", O_RDWR | O_CREAT);
 			strncpy(buf + 5, port, 64);
-			write(config_fd, buf, sizeof(buf));
+			write(config_fd, buf, strlen(buf));
 			close(config_fd);
 		}
 		else{
@@ -159,8 +162,9 @@ int main(int argc, char **argv)
 			}
 			 strcpy(buf1 + index, "port:");
 			 index += 5;
-			 strncpy(buf1 + index, uri, 64);
-			 write(config_fd, buf, sizeof(buf));
+			 strncpy(buf1 + index, port, 64);
+			 index += strlen(port);
+			 write(config_fd, buf1, index);
 			 close(config_fd);
 		}
 	}
@@ -173,8 +177,8 @@ int main(int argc, char **argv)
 		config_fd = open("./latency.con", O_RDWR);
 		if (config_fd < 0 ){
 			config_fd = open("./latency.con", O_RDWR | O_CREAT);
-			strncpy(buf + 3, port, 64);
-			write(config_fd, buf, sizeof(buf));
+			strncpy(buf + 3, ip, 64);
+			write(config_fd, buf, strlen(buf));
 			close(config_fd);
 		}
 		else{
@@ -189,10 +193,11 @@ int main(int argc, char **argv)
 				strcpy(buf1 + index, p);
 				index += strlen(p);
 			}
-			 strcpy(buf1 + index, "port:");
+			 strcpy(buf1 + index, "ip:");
 			 index += 3;
-			 strncpy(buf1 + index, uri, 64);
-			 write(config_fd, buf, sizeof(buf));
+			 strncpy(buf1 + index, ip, 64);
+			 index += strlen(ip);
+			 write(config_fd, buf1, index);
 			 close(config_fd);
 		}
 	}
@@ -249,12 +254,13 @@ int main(int argc, char **argv)
 	if (isCMD(SET_IP) || isCMD(SET_PORT) || isCMD(END_SERVER_CMD)){
 		retval = UA_Client_connect(client, uri);
 		if(retval == UA_STATUSCODE_GOOD) {
-			UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STRING(1, "EndOpcServer"), 0, NULL, NULL, NULL );
+			UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STRING(1, "EndServer"), 0, NULL, NULL, NULL );
 			sleep(1);
 		}
-		if ((isCMD(SET_IP) || isCMD(SET_PORT)) && !(isCMD(END_SERVER_CMD)))
+		if ((isCMD(SET_IP) || isCMD(SET_PORT)) && !(isCMD(END_SERVER_CMD))){
 			start_opc_server(ip, port);
-			sleep(3);
+			sleep(1);
+		}
 		
 	}
 	
@@ -304,6 +310,9 @@ int main(int argc, char **argv)
 		UA_Variant_setScalarCopy(myVariant, &data, &UA_TYPES[UA_TYPES_INT32]);
 		UA_Client_writeValueAttribute(client,
 				UA_NODEID_STRING(1, "latency"), myVariant);
+
+		UA_Client_disconnect(client);
+		UA_Client_delete(client);
 
 	}
 	return 0;
