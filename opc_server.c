@@ -116,8 +116,18 @@ addReDrawMethod(UA_Server *server)
 				UA_QUALIFIEDNAME(1, "ReDraw"), get_temp, 
 				&reDrawMethod, NULL, 0, NULL, 0, NULL, NULL);
 }
+
 int start_opc_server(char *ip, char *port)
 {
+
+	if (daemon(0, 1) < 0){
+		return -4;
+	}
+
+	if (!already_running(LOCK_FILE)){
+		return -5;
+	}
+
 	UA_ServerNetworkLayer nl;
 	UA_ServerConfig config = UA_ServerConfig_standard;
         
@@ -135,28 +145,6 @@ int start_opc_server(char *ip, char *port)
 	addReDrawMethod(server);
 	addEndServerMethod(server);
 
-	pid_t pid = fork();
-	if (pid < 0)
-		return -1;
-	if (pid > 0)
-		return(EXIT_SUCCESS);
-
-	umask(0);  
-	pid_t sid = setsid();  
-	if (sid < 0) {  
-		exit(EXIT_FAILURE);  
-	}
-	
-	if ((chdir("/")) < 0) {  
-		exit(EXIT_FAILURE);  
-	} 
-	close(STDIN_FILENO);  
-	close(STDOUT_FILENO);  
-	close(STDERR_FILENO); 
-	int fd = open( "/dev/null", O_RDWR );
-	dup2(fd, 0);
-	dup2(fd, 1);
-	dup2(fd, 2);
 	UA_StatusCode retval = UA_Server_run(server, &running);
 	UA_Server_delete(server);
 	return (int)retval;

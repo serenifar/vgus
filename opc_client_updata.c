@@ -7,21 +7,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "vgus.h"
 
-
-#define END_SERVER_CMD 0x01
-#define START_SERVER_CMD 0x02
-#define REDRAW_CMD 0x03
-#define UPDATA_CMD 0x04
-#define SET_URI  0x05
-#define SET_IP  0x06
-#define SET_PORT  0x08
-#define USE_CONF_URI_CMD 0x09
 
 #define isCMD(c)  (cmd & (1 << c))
 
 #define DEFAULT_IP "10.193.20.217"
 #define DEFAULT_PORT "23"
+#define DEFAULT_URI "opc.tcp://localhost:16666"
+
+
 
 static char *find_str(char *s, char *b, int str_num)
 {
@@ -35,7 +30,11 @@ static char *find_str(char *s, char *b, int str_num)
 	return NULL;
 
 }
-
+#define OPC_SERVER 0x01;
+#define PIPE_SERVER 0x02;
+#define set_warn_v_valid(v)  ((v) |= 0xffff0000)
+#define is_warn_v_valid(v)   (((v) & 0xFFFF0000) == 0xFFFF0000)
+#define get_warn_v(v)        ((v) & 0xFFFF)
 int main(int argc, char **argv)
 {
 	char ch;
@@ -45,206 +44,109 @@ int main(int argc, char **argv)
 	char *port = DEFAULT_PORT;
 	int cmd = 0;	
 	unsigned int data = 0;
-	char *usage = "Usage: draw_latency  [-u uri] [-p port] [-i ip] -s latency [-c] [-r] \
-	       			-u: set opc-server uri to connect\n \
-				-p -i: the modbus port used when opc-server start \n \
-				-s : updata the latency\n \
-				-c: end the opc-server\n \
-				-r: redraw the screen\n";
-	if (argc == 2){
-		if (argv[1][0] != '-'){
-			cmd |= 1 << UPDATA_CMD; 
-			data = atoi(argv[1]);
-			if (data > Y_max || data < Y_min){
-				printf("Error: the range of -s is %d - %d\n", Y_min, Y_max);
-				return 0;
-			}
-		}
-	}	
+	int target_server = 0;
+	int latency = 0;
+	int high_warn_v, low_warn_v;
+	char *usage = "Usage: vgus [options] [date]\n \
+	       			-u: set opc-server UA_NODEID_STRING\n \
+				-p -i: the modbus port used \n \
+				-o : using opc as the server, the default is pipe \n \
+				-k: kill current server\n \
+				-r: redraw the screen\n\
+				-i: print server info\n \
+				-s: switch the server (opc | pipe)\n \
+				-g: get temperature\n \
+				-l: set latency\n \
+				-w: set warn temperature \n\
+					\"high:low\" : updara the high and low \
+						temperature simultaneous.\n \
+					 \"high:\" \\ \":low\": only updata high or low.\n\
+				-h: print this info\n\
+				";
 
-	if (argc > 1 && !isCMD(UPDATA_CMD)){
-		while ((ch = getopt(argc, argv, "u:i:p:cs:r")) != -1){
+	if (argc > 1){
+		while ((ch = getopt(argc, argv, "u:i:p:okis:grl:w:h")) != -1){
 			switch(ch){
 				case 'u':
 					uri = strdup(optarg);
-					cmd |= 1 << SET_URI;
 					break;
 				case 'i':
 					ip = strndup(optarg, strlen("255.255.255.255"));
-					cmd |= 1 << SET_IP;
 					break;
 				case 'p':
 					port = strndup(optarg, strlen("65536"));
-					cmd |= 1 << SET_PORT;
 					break;
-				case 'c':
-					cmd |= 1 << END_SERVER_CMD;
+				case 'o':
+					cmd |= 1 << OPC_SERVER_CMD;
+					break;
+				case 'k':
+					cmd |= 1 << KILL_SERVER_CMD;
+					break;
+				case 'i':
+					cmd |= 1 << PRINT_INFO_CMD;
 					break;
 				case 's':
-					data = atoi(argv[1]);
-					if (data > Y_max || data < Y_min){
-						printf("Error: the range of -s is %d - %d\n", Y_min, Y_max);
+					if (strncmp("opc", optarg, 3) == 0)
+						target_server = OPC_SERVER;
+				       	else
+				       		target_server = PIPE_SERVER;	       
+					cmd |= 1 << SWITCH_SERVER_CMD;
+					break;
+				case 'g':
+					cmd |= 1 << GET_TEMPERATURE_CMD;	
+					break;
+				case 'l':
+					latency = atoi(optarg);
+					if (latency > Y_x_max || latency < Y_x_min){
+						printf("Error: the range of -s is %d - %d\n", Y_x_min, Y_x_max);
 						return 0;
 					}
-				       cmd |=  1 << USE_CONF_URI_CMD;	
+				       	cmd |=  1 << SET_LATENCY_CMD;	
 					break;
-				case 'r':
-					cmd |= 1 << REDRAW_CMD;
+				case 'w':
+					char *p = strchr(optarg, ':');
+					if (p){
+						print("%s", usage);
+						return 0;
+					}
+					
+					if (p != optarg){
+						*p = '\0';
+						high_warn_v = atoi(optarg);
+						if (high_warn_v > Y_t_min && high_warn_v < Y_t_max)
+							set_warn_v_valid(high_warn_v);
+					}
+					
+					if (*(p + 1) != '\0'){
+						low_warn_v = atoi(p + 1);
+						if (low_warn_v > Y_t_min && low_warn_v < Y_t_max){
+							if (low_warn_v < high_warn_v)
+								set_warn_v_valid(low_warn_v);
+						}
+					}
+
+					if (!is_warn_v_valid(high_warn_v) && 
+						!is_warn_v_valid(high_warn_v) ){
+						print("%s", usage);
+						return 0;
+					
+					}
+
+					cmd |= 1 << SET_WARN_CMD;
 					break;
+				default:
+					print("%s", usage);
+					return 0;
+					
 								
 			}
 		}
 	}
-	
-	if(cmd == 0){
+	else {
 		printf("%s", usage);
 		return 0;
 	}
 	
-	int config_fd = 0;
-	if (isCMD(SET_URI)){
-		char buf[128] = "uri:";
-		char buf1[128] = {0}; 
-		char *p = NULL;
-		int index = 0;
-		config_fd = open("./latency.con", O_RDWR);
-		if (config_fd < 0 ){
-			config_fd = open("./latency.con", O_RDWR | O_CREAT);
-			strcpy(buf + 4, uri);
-			write(config_fd, buf, strlen(buf));
-			close(config_fd);
-		}
-		else{
-			read(config_fd, buf, 128);
-			p = strstr("ip:", buf);
-			if(p){
-				strcpy(buf1, p);
-				index += strlen(p);
-			}
-			 p = strstr("port:", buf);
-			 if(p){
-				strcpy(buf1 + index, p);
-				index += strlen(p);
-			}
-			 strcpy(buf1 + index, "uri:");
-			 index += 4;
-			 strcpy(buf1 + index, uri);
-			 index += strlen(uri);
-			 write(config_fd, buf1, index);
-			 close(config_fd);
-		}
-		return 0;
-	}
-	
-	if (isCMD(SET_PORT)){
-		char buf[128] = "port:";
-		char buf1[128] = {0}; 
-		char *p = NULL;
-		int index = 0;
-		config_fd = open("./latency.con", O_RDWR);
-		if (config_fd < 0 ){
-			config_fd = open("./latency.con", O_RDWR | O_CREAT);
-			strncpy(buf + 5, port, 64);
-			write(config_fd, buf, strlen(buf));
-			close(config_fd);
-		}
-		else{
-			read(config_fd, buf, 128);
-			p = strstr("ip:", buf);
-			if(p){
-				strcpy(buf1, p);
-				index += strlen(p);
-			}
-			 p = strstr("uri:", buf);
-			 if(p){
-				strcpy(buf1 + index, p);
-				index += strlen(p);
-			}
-			 strcpy(buf1 + index, "port:");
-			 index += 5;
-			 strncpy(buf1 + index, port, 64);
-			 index += strlen(port);
-			 write(config_fd, buf1, index);
-			 close(config_fd);
-		}
-	}
-
-	if (isCMD(SET_IP)){
-		char buf[128] = "ip:";
-		char buf1[128] = {0}; 
-		char *p = NULL;
-		int index = 0;
-		config_fd = open("./latency.con", O_RDWR);
-		if (config_fd < 0 ){
-			config_fd = open("./latency.con", O_RDWR | O_CREAT);
-			strncpy(buf + 3, ip, 64);
-			write(config_fd, buf, strlen(buf));
-			close(config_fd);
-		}
-		else{
-			read(config_fd, buf, 128);
-			p = strstr("port:", buf);
-			if(p){
-				strcpy(buf1, p);
-				index += strlen(p);
-			}
-			 p = strstr("uri:", buf);
-			 if(p){
-				strcpy(buf1 + index, p);
-				index += strlen(p);
-			}
-			 strcpy(buf1 + index, "ip:");
-			 index += 3;
-			 strncpy(buf1 + index, ip, 64);
-			 index += strlen(ip);
-			 write(config_fd, buf1, index);
-			 close(config_fd);
-		}
-	}
-
-
-	if (isCMD(USE_CONF_URI_CMD)){
-		if ((config_fd = open("./latency.con", O_RDWR)) < 0){
-			config_fd = open("./latency.con", O_RDWR | O_CREAT);
-			char buf[128] = {0};
-			int index = 0;
-			strcpy(buf + index, "ip:");
-			index += 3;
-			strcpy(buf + index, ip);
-			index += strlen(ip);
-			strcpy(buf + index, "port:");
-			index += 5;
-			strcpy(buf + index, port);
-			index += strlen(port);
-			strcpy(buf + index, "uri:");
-			index += 4;
-			strcpy(buf + index, uri);
-			write(config_fd, buf, sizeof(buf));
-			close(config_fd);
-		}
-		else{
-			char buf[128] = {0};
-			char *b;
-			read(config_fd, buf, 128);
-			if ((b = find_str("uri:", b, 3)) == NULL)
-				return 0;
-			if (isCMD(SET_URI))
-				free(uri);
-			uri = strdup(b);
-			
-			if ((b = find_str("ip:", b, 3)) == NULL)
-				return 0;
-			if (isCMD(SET_IP))
-				free(ip);
-			ip = strdup(b);
-			
-			if ((b = find_str("port:", b, 3)) == NULL)
-				return 0;
-			if (isCMD(SET_PORT))
-				free(port);
-			port = strdup(port);
-		}
-	}
 	
 	UA_ClientConfig config = UA_ClientConfig_standard;
 	config.logger = NULL;

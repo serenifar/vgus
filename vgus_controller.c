@@ -412,13 +412,78 @@ void curve_clear_data(struct send_info *info, int ch)  // ch = 0 : all ch;
 	copy_to_buf(info, buf, 6);
 }
 
-
-#define mdelay() usleep(15*1000)
-#define FIFO_FILE "/tmp/latency"
-int main(int argc, char **argv)
+int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len)
 {
+	struct flock lock;
+	lock.l_type = type;
+	lock.l_start = offset;
+	lock.l_whence = whence;
+	lock.l_len = len;
+
+	return (fcntl(fd, cmd, &lock));
+
+}
+
+#define write_lock(fd, offset, whence, len) \
+		lock_reg((fd), F_SETLK, F_WRLCK, (offset), (whence), (len))
+
+#define lockfile(fd) write_lock((fd), 0, SEEK_SET, 0)
+
+pid_t lock_test(int fd, int type, off_t offset, int whence, off_t len)
+{
+	struct flock fl;
+	fl.l_type = type;
+	fl.l_start = offset;
+	fl.l_whence = whence;
+	fl.l_len = len;
+	
+	if (fcntl(fd, F_GETLK, &fl) < 0){
+		return -1;
+	}
+	
+	if (fl.l_type == F_UNLCK)
+		return 0;
+	return (fl.l_pid;)
+}
+
+#define is_write_lockable(fd, offset, whence, len) \
+		(lock_test((fd), F_WRLCK, (offset), (whence), (len)) == 0)
+
+#define is_lockfile(fd) is_write_lockable(fd, 0, SEEK_SET, 0)
+
+int already_running(char *lockfile)
+{
+	int fd;
+	char buf[16];
+	
+	fd = open(lockfile, O_RDWR | O_CREAT, LOCK_MODE );
+
+	if (fd < 0){
+		return 1;
+	}	
+
+	if (lockfile(fd) < 0){
+		close(fd);
+		return 1;
+	}
+	ftruncate(fd, 0);
+	sprintf(buf, "%ld", (long)getpid());
+	write(fd, buf, strlen(buf) + 1);
+	return 0;
+
+}
+int start_xenomai_server(char *ip, char *port)
+{
+	if (daemon(0, 1) < 0){
+		return -4;
+	}
+
+	if (!already_running(LOCK_FILE)){
+		return -5;
+	}
+	
 	struct send_info *info;
-	info = open_port("10.193.20.217", "23");
+	info = open_port(ip, port);
 	if (!info){
 		return 0;
 	}
@@ -437,18 +502,7 @@ int main(int argc, char **argv)
 		if (fd < 0)
 			return -1;
 	}
-	else {
-	//	struct stat buf;
-	//	if((fd = lstat(argv[1],&buf)) < 0)
-	//	       return -2;
-	//	if(S_ISFIFO(buf.st_mode) == 0)
-	//		return -3;	
-	}
 
-
-	if (daemon(0, 1) < 0){
-		return -4;
-	}
 	char buf[16];
 	int num;
 	while (1){
