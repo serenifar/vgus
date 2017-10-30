@@ -99,7 +99,7 @@ static void set_axis_values(struct send_info *info, struct axis_values *axis_v)
 	int len = 0;
 
 	int i;
-	unsigned short value = axis_v->init;
+	short value = axis_v->init;
 	unsigned short addr = axis_v->variable_addr;
 	for (i = 0; i < axis_v->num; i++){
 		write_var(buf, addr, value);
@@ -168,10 +168,15 @@ static void set_vernier_value(struct send_info *info,struct xenomai_screen *xeno
 
 void xenomai_update_curve(struct send_info *info, struct xenomai_screen *xenomai ,unsigned data)
 {
-	set_curve_value(info, xenomai, data);
+	set_curve_value(info, data, xenomai->curve.channel);
 	up_vernier(xenomai->vernier, 1);
 	set_vernier_value(info, xenomai, data);
 } 
+
+void temperature_update_curve(struct send_info *info, struct temperature_screen *temp ,unsigned data)
+{
+	set_curve_value(info, data, temp->curve.channel);
+}
 
 static void realtime_curve_init(struct send_info *info, struct realtime_curve *curve)
 {
@@ -199,109 +204,78 @@ void curve_clear_data(struct send_info *info, struct realtime_curve *curve )  //
 	copy_to_buf(info, buf, 6);
 }
 
-int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len)
+void switch_screen(struct send_info *info,  unsigned short screen_id) 
 {
-	struct flock lock;
-	lock.l_type = type;
-	lock.l_start = offset;
-	lock.l_whence = whence;
-	lock.l_len = len;
-
-	return (fcntl(fd, cmd, &lock));
-
+	char buf[16];
+	int len;
+	len = write_regs_short(buf, 0x03, screen_id);
+	copy_to_buf(info, buf, len);
 }
 
-
-pid_t lock_test(int fd, int type, off_t offset, int whence, off_t len)
+struct temperature_screen *t_screen;
+struct curve_frame temperature_curve_frame;
+struct xenomai_screen *x_screen;
+int temperature_screen_init(struct send_info *info)
 {
-	struct flock fl;
-	fl.l_type = type;
-	fl.l_start = offset;
-	fl.l_whence = whence;
-	fl.l_len = len;
-	
-	if (fcntl(fd, F_GETLK, &fl) < 0){
+	t_screen = malloc(sizeof(struct temperature_screen));
+	if (!t_screen){
 		return -1;
 	}
 	
-	if (fl.l_type == F_UNLCK)
-		return 0;
-	return (fl.l_pid;)
-}
+	temperature_curve_frame.length = 700;
+	temperature_curve_frame.width = 265;
+	temperature_curve_frame.apex[0] = 55;
+	temperature_curve_frame.apex[1] = 175;
 
-int already_running(char *lockfile)
-{
-	int fd;
-	char buf[16];
+	t_screen->temp.describe_addr = 0x1400;
+	t_screen->temp.variable_addr = 0x5400;
+	t_screen->warn_max.describe_addr = 0x1420;
+	t_screen->warn_max.variable_addr = 0x5420;
+	t_screen->warn_min.describe_addr = 0x1440;
+	t_screen->warn_min.variable_addr = 0x5440;
+	t_screen->warn_icon.describe_addr = 0x1000;
+	t_screen->warn_icon.variable_addr = 0x5000;
 	
-	fd = open(lockfile, O_RDWR | O_CREAT, LOCK_MODE );
+	t_screen->curve.describe_addr = 0x1020;
+	t_screen->curve.curve_frame = &temperature_curve_frame;
+	t_screen->channel = 0x02;
+	t_screen->y_max = 80;
+	t_screen->y_min = 20;
+	t_screen->x_interval = 20;
+	t_screen->color = 0xF810;
+	t_screen->grid.describe_addr = 0x13c0;
+	t_screen->grid.variable_addr = 0x53c0;
+	t_screen->grid.number = 7;
+        t_screen->grid.curve_frame = &temperature_curve_frame;
+	t_screen->grid.color = 0xFC00;
 
-	if (fd < 0){
-		return 1;
-	}	
+	t_screen->x_axis.number = 7;
+	t_screen->x_axis.init = 20;
+	t_screen->x_axis.interval = 10;
+        t_screen->x_axis.variable_addr = 0x5180;
+	t_screen->x_axis.interval_addr = 0x20;
 
-	if (lockfile(fd) < 0){
-		close(fd);
-		return 1;
-	}
-	ftruncate(fd, 0);
-	sprintf(buf, "%ld", (long)getpid());
-	write(fd, buf, strlen(buf) + 1);
-	return 0;
+	t_screen->y_axis.number = 11;
+	t_screen->y_axis.init = 350;
+	t_screen->y_axis.interval = -35;
+        t_screen->y_axis.variable_addr = 0x5260;
+	t_screen->y_axis.interval_addr = 0x20;
 
+	t_screen->axis.describe_addr = 0x13e0;		
+	t_screen->axis.variable_addr = 0x53e0;
+	t_screen->axis.curve_frame = &temperature_curve_frame;
+	t_screen->axis.color = 0x4008;
+
+	t_screen->screen_id = 0x01;
 }
 
-int start_xenomai_server(char *ip, char *port)
-{
-	if (daemon(0, 1) < 0){
-		return -4;
+int xenomai_screen_init(struct send_info *info){
+	x_screen = malloc(sizeof(struct xenomai_screen));
+	if (!x_screen){
+		free(t_screen);
+		return -1;
 	}
-
-	if (!already_running(LOCK_FILE)){
-		return -5;
-	}
-	
-	struct send_info *info;
-	info = open_port(ip, port);
-	if (!info){
-		return 0;
-	}
-	set_title_vari(info, "Xenomai Interrupt Latency");
-	send_data(info);
-	curve_init(info);
-	send_data(info);
-	set_axis(info);
-	set_frame(info);
-	set_axis_value(info);
-	send_data(info);
-	unsigned int data;	
-	int fd; 
-	if ((fd = access(FIFO_FILE, F_OK)) < 0){
-		fd = mkfifo(FIFO_FILE, 0666);
-		if (fd < 0)
-			return -1;
-	}
-
-	char buf[16];
-	int num;
-	while (1){
-		if ((fd = open(FIFO_FILE, O_RDONLY)) < 0){
-			return -6;
-		}
-		num = read(fd, buf, 16);
-		if (strncmp("exit", buf, 4) == 0)
-			return 0;
-		data = atoi(buf);
-		if(data > Y_max || data < Y_min)
-			continue;
-		update_curve(info, data);
-		send_data(info);
-		close(fd);
-	}
-
-	close_connect(info);
 }
-
 void vgus_init(struct send_info *info)
 {
 	set_title_vari(info, "Xenomai Interrupt Latency");
