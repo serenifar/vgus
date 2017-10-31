@@ -89,7 +89,7 @@ static struct send_info *create_connect(char *ip, char *port)
 	info->ip = ip;
 	info->port = port;
 	info->skfd = create_sk_cli(ip, port);
-	info->rwlock = PTHREAD_RWLOCK_INITIALIZER;
+	pthread_rwlock_init(&(info->rwlock), NULL);
 	info->next = NULL;
 	info->prev = NULL;
 	if(info->skfd < 0){
@@ -99,7 +99,7 @@ static struct send_info *create_connect(char *ip, char *port)
 		return NULL;
 	}
 	info_header->info_header = info;
-	info_header->rwlock = PTHREAD_RWLOCK_INITIALIZER;
+	pthread_rwlock_init(&(info_header->rwlock), NULL);
 	return info;
 }
 
@@ -116,9 +116,9 @@ struct send_info *dup_send_info(struct send_info *info)
 		return NULL;
 	}
 	info_n->buf_len = DEF_BUFF_SIZE;
-	info_n->rwlock = PTHREAD_RWLOCK_INITIALIZER;
+	pthread_rwlock_init(&(info_n->rwlock), NULL);
 	
-	pthread_rwlock_wrlock(&(info->header.rwlock));
+	pthread_rwlock_wrlock(&(info->header->rwlock));
 	while(1){
 		if(info->next)
 			info = info->next;
@@ -132,7 +132,7 @@ struct send_info *dup_send_info(struct send_info *info)
 	info_n->prev = info;
 	info->next = info_n;
 	info_n->header = info->header;
-	pthread_rwlock_unlock(&(info->header.rwlock));
+	pthread_rwlock_unlock(&(info->header->rwlock));
 	return info_n;	
 }
 
@@ -158,7 +158,7 @@ int copy_to_buf(struct send_info *info, char *buffer, int len)
 
 void del_send_info(struct send_info *info)
 {
-	pthread_rwlock_wrlock(&(info->header.rwlock));
+	pthread_rwlock_wrlock(&(info->header->rwlock));
 	if (info->prev){
 		info->prev->next = info->next;
 	}
@@ -166,17 +166,15 @@ void del_send_info(struct send_info *info)
 	if (info->next){
 		info->next->prev = info->prev;
 	}
+	pthread_rwlock_destroy(&(info->rwlock));
 	
-	pthread_rwlock_unlock(&(info->header.rwlock));
+	pthread_rwlock_unlock(&(info->header->rwlock));
 	
-	pthread_rwlock_wrlock(&(info->rwlock));
 	free(info->buf);
 	if (info->skfd)
 		close(info->skfd);
 	free(info);
-	info = NULL;
 }
-
 
 void close_connect(struct send_info *info)
 {
@@ -190,7 +188,7 @@ void close_connect(struct send_info *info)
 	free(header);
 }
 
-int send_data(struct send_info *info)
+int send_all_data(struct send_info *info)
 {
 	int wlen;
 	 struct send_info *i;
@@ -213,6 +211,28 @@ int send_data(struct send_info *info)
 	return wlen;
 }	
 
+int send_data(struct send_info *info)
+{
+	int wlen;
+	int skfd = info->header->info_header->skfd;
+	pthread_rwlock_rdlock(&(info->rwlock));
+        wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
+	pthread_rwlock_rdlock(&(info->rwlock));
+	return wlen;
+}
+
+int send_and_recv_data(struct send_info *info, char *buf, int len)
+{
+	int wlen;
+	int skfd = info->header->info_header->skfd;
+	pthread_rwlock_rdlock(&(info->rwlock));
+        wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
+	pthread_rwlock_rdlock(&(info->rwlock));
+	
+       	wlen = recv(skfd, buf, len, 0);	
+	return wlen;
+}	
+
 struct send_info* open_port(char *ip, char *port)
 {
 
@@ -222,7 +242,7 @@ struct send_info* open_port(char *ip, char *port)
 		return NULL;
 	}
 	struct timeval tv;
-	tv.tv_usec = 100000;
+	tv.tv_usec = 200000;
 	setsockopt(info->skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval));
 	return info;
 }

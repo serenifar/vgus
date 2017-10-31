@@ -1,16 +1,10 @@
 #ifndef __VGUS__H____
 #define __VGUS__H____
-
-#define KILL_SERVER_CMD 0x01
-#define REDRAW_CMD  0x02
-#define OPC_SERVER_CMD  0x03
-#define PRINT_INFO_CMD 0x04
-#define SWITCH_SERVER_CMD 0x05
-#define GET_TEMPERATURE_CMD 0x06
-#define SET_LATENCY_CMD 0x07
-#define SET_WARN_CMD 0x08
+#include <string.h>
 #include "usr-410s.h"
 #define frame_heafer 0xa55a
+extern struct temperature_screen *t_screen;
+extern struct xenomai_screen *x_screen;
 
 struct numerical_variable
 {
@@ -48,13 +42,19 @@ struct grid_frame
 	unsigned short color;
 };
 
+struct warn_frame
+{
+	unsigned short describe_addr;
+	unsigned short variable_addr;
+	struct curve_frame *curve_frame;
+	unsigned short color_max;
+	unsigned short color_min;
+};
 struct text_variable
 {
 	unsigned short describe_addr;
 	unsigned short variable_addr;
 };
-
-
 
 struct realtime_curve
 {
@@ -69,7 +69,7 @@ struct realtime_curve
 
 struct axis_values
 {
-	int num;
+	int number;
 	short init;
 	short interval;
 	unsigned short variable_addr;
@@ -83,6 +83,7 @@ struct temperature_screen
 	struct numerical_variable warn_min;
 	struct icon_variable warn_icon;
 	struct realtime_curve curve;
+	struct warn_frame warn;
 	struct grid_frame grid;
 	struct axis_values x_axis;
 	struct axis_values y_axis;
@@ -94,6 +95,7 @@ struct vernier
 {
 	struct numerical_variable var;
 	unsigned short  vernier;
+	struct curve_frame *curve_frame;
 	
 };
 
@@ -101,7 +103,6 @@ struct xenomai_screen
 {
 	struct vernier vernier;
 	struct text_variable title;
-	struct icon_variable warn_icon;
 	struct realtime_curve curve;
 	struct grid_frame grid;
 	struct axis_values x_axis;
@@ -111,7 +112,7 @@ struct xenomai_screen
 };
 
 
-#define h_16(var_int16) ((var_int16) >> 8)
+#define h_16(var_int16) ((char)((var_int16) >> 8))
 #define l_16(var_int16) ((char)((var_int16) & 0xff))
 
 // write variable
@@ -124,33 +125,11 @@ struct xenomai_screen
 #define set_var_cmd(buf, cmd) ((buf)[3] = (cmd))
 #define set_value(buf, data) (buf)[0] = h_16(data); (buf)[1] = l_16(data)
 
-#define write_vars(buf, len, addr, src ) do {set_var_head(buf, addr);\
-				   set_var_len(buf, (len << 1) + 0x03); \
-       			           set_var_cmd(buf, 0x82); \
-				   {int i; for (i = 0; i < len; i++){ \
-					     set_value(buf + 6 + i * 2, src[i])}}\
-				   }while(0); (len * 2) + 6;
+#define write_var(buf, addr, data) write_vars(buf, 0x01, addr, &(data))
 
-#define write_var(buf, addr, data) write_vars(buf, 0x01, addr, &data)
-
-#define write_text_var(buf, len, addr, str ) do {set_var_head(buf, addr);\
-				   set_var_len(buf, (len  + 0x03); \
-       			           set_var_cmd(buf, 0x82); \
-				   memcpy(buf + 6, str, len);\
-				   } while(0); (len + 6)
 
 // draw realtime curve						   
-#define write_curve_values(buf, len, channel, src) \
-				do { buf[0] = h_16(frame_heafer); \
-				     buf[1] = l_16(frame_heafer); \
-				     buf[4] = 1 << channel; \
-				     set_var_len(buf, len * 2 + 2);\
-				     set_var_cmd(buf, 0x84); \
-				     {int i; for (i = 0; i < len; i+){\
-					set_value(buf + 5 + i * 2, src[i])}} \
-				} while(0); ((len * 2) + 5)
-
-#define write_curve_value(buf, channel, data) write_curve_values(buf, 2, channel, &data)
+#define write_curve_value(buf, channel, data) write_curve_values(buf, 1, channel, &data)
 
 
 
@@ -181,24 +160,8 @@ struct xenomai_screen
 				     buf[4] = (addr);} while(0)
 #define set_reg_len(buf, len) buf[2] = (len)
 #define set_reg_cmd(buf, cmd) buf[3] = (cmd)
-#define write_regs(buf, addr, chars, len)  do {set_reg_head(buf, addr);\
-					      set_reg_len(len + 3);\
-					      set_reg_cmd(0x80);\
-					      memcpy(buf + 5, chars, len);\
-					}while(0); (len + 5)
 
 #define write_reg(buf, addr, data) write_regs(buf, addr, &data, 1)
-#define write_regs_short(buf, addr, data) do { char temp[2]; \
-						temp[0] = h_16(data);\
-       						temp[1] = l_16(data);\
-       						write_regs(buf, addr, temp, 2 );} while(0); 7
-
-#define read_reg(buf, addr, len)  do {set_reg_head(buf, addr);\
-					      set_reg_len(4);\
-					      set_reg_cmd(0x81);\
-					      *(buf + 5) = (len);\
-					}while(0); 6
-
 // multiple processes lock 
 #define write_lock(fd, offset, whence, len) \
 		lock_reg((fd), F_SETLK, F_WRLCK, (offset), (whence), (len))
@@ -219,7 +182,9 @@ struct xenomai_screen
 
 void update_curve(struct send_info *info, int data);
 void curve_clear_data(struct send_info *info, struct realtime_curve *curve); // ch = 0 : all ch; 
-void xenomai_update_curve(struct send_info *info, struct xenomai_screen *xenomai ,unsigned data);
-void temperature_update_curve(struct send_info *info, struct temperature_screen *temp ,unsigned data);
+void xenomai_update_curve(struct send_info *info, unsigned int data);
+void temperature_update_curve(struct send_info *info, unsigned int data);
 void vgus_init(struct send_info *info);
+void set_warn_icon(struct send_info *info, int red);
+int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int min);
 #endif

@@ -22,9 +22,11 @@ struct send_info
 
 void close_connect(struct send_info *info);
 struct send_info *open_port(char *ip, char *port);
-int send_data(struct send_info *info);
+int send_all_data(struct send_info *info);
 void del_send_info(struct send_info *info);
 int copy_to_buf(struct send_info *info, char *buffer, int len);
 struct send_info *dup_send_info(struct send_info *info);
+int send_and_recv_data(struct send_info *info, char *buf, int len);
+int send_data(struct send_info *info);
 
 #endif

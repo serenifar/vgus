@@ -3,57 +3,108 @@
 #include <string.h>
 #include <stdlib.h>
 #include "open62541.h"
-#include "vgus_controller.h"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "vgus.h"
+#include "opc_server.h"
+#include "modbus_485.h"
 
 
+UA_Boolean opc_running = true;
+unsigned char *running = (unsigned char *)&opc_running;
 
+void block_client()
+{
+	if(blocking){
+		pthread_mutex_lock(&blocking_lock);		
+		pthread_mutex_unlock(&blocking_lock);		
+	}
+}
 
-UA_Boolean running = true;
-char *ip, *port;
-
-struct send_info *info;
+struct send_info *opc_info_458, *opc_info_232;
 static void end_opc_server()
 {
-	running = false;
-	close_connect(info);
+	opc_running = false;
 }
 
 static void 
-afterUpdate(void *handle, const UA_NodeId nodeId,
+get_temperature(void *handle, const UA_NodeId nodeId,
 		      const UA_Variant *data, const UA_NumericRange *range){
+	block_client();
 	UA_Server *server = (UA_Server *)handle;
-	UA_Int32 latency;
+	UA_Int32 temperature = modbus_get_temperature();
 	UA_Variant value;
-	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "latency");
-	UA_Server_readValue(server, tempNodeId, &value);
-	latency = *(UA_Int32 *)(value.data);
-	update_curve(info, latency);
-	send_data(info);
+	UA_Variant_setScalarCopy(&value, &temperature,
+				 &UA_TYPES[UA_TYPES_INT32]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "temperature");
+	UA_Server_writeValue(server, tempNodeId, value);
 }
 
 
 static void
-addUpdateCallback(UA_Server *server)
+addGetTemperatureCallback(UA_Server *server)
 {
 	/*1. Define the node attributes */
 	UA_VariableAttributes attr;
 	UA_VariableAttributes_init(&attr);
-	attr.displayName = UA_LOCALIZEDTEXT("en_US", "latency");
-	UA_Int32 temperature = 500;
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "temperature");
+	UA_Int32 temperature = 243;
 	UA_Variant_setScalar(&attr.value, &temperature, &UA_TYPES[UA_TYPES_INT32]);
 	
 	/*2. Define where the node shall be added with which browsename*/
-	UA_NodeId newNodeId = UA_NODEID_STRING(1, "latency");
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "temperature");
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
 	UA_NodeId variableType = UA_NODEID_NULL;
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "latency");
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "temperature");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_temperature;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+
+static void 
+set_warn_value(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	block_client();
+	UA_Server *server = (UA_Server *)handle;
+	UA_Int32 warn;
+	UA_Variant value;
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "warn_value");
+	UA_Server_readValue(server, tempNodeId, &value);
+	warn = *(UA_Int32 *)(value.data);
+	modbus_update_warn_vaules(opc_info_232, warn >> 16, warn | 0xffff);
+}
+
+
+static void
+addSetWarnCallback(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "warn_vaule");
+	UA_Int32 warn = (75 << 16) + 25;
+	UA_Variant_setScalar(&attr.value, &warn, &UA_TYPES[UA_TYPES_INT32]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "warn_vaule");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "warn_vaule");
 
 	/*3. Add the node*/
 	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
@@ -64,10 +115,97 @@ addUpdateCallback(UA_Server *server)
 	UA_ValueCallback callback;
 	callback.handle = server;
 	callback.onRead = NULL;
-	callback.onWrite = afterUpdate;
+	callback.onWrite = set_warn_value;
 	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
 }
 
+static void 
+set_heating_score(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	block_client();
+	UA_Server *server = (UA_Server *)handle;
+	UA_Int32 score;
+	UA_Variant value;
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "heating_score");
+	UA_Server_readValue(server, tempNodeId, &value);
+	score = *(UA_Int32 *)(value.data);
+	modbus_update_heating_score(score);
+}
+
+
+static void
+addSetHeatingCallback(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "heating_score");
+	UA_Int32 score = 0;
+	UA_Variant_setScalar(&attr.value, &score, &UA_TYPES[UA_TYPES_INT32]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "heating_score");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "heating_score");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = NULL;
+	callback.onWrite = set_heating_score;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+
+static void 
+set_cooling_score(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	block_client();
+	UA_Server *server = (UA_Server *)handle;
+	UA_Int32 score;
+	UA_Variant value;
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "cooling_score");
+	UA_Server_readValue(server, tempNodeId, &value);
+	score = *(UA_Int32 *)(value.data);
+	modbus_update_cooling_score(score);
+}
+
+
+static void
+addSetCoolingCallback(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "cooling_score");
+	UA_Int32 score = 0;
+	UA_Variant_setScalar(&attr.value, &score, &UA_TYPES[UA_TYPES_INT32]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "cooling_score");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "cooling_score");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = NULL;
+	callback.onWrite = set_cooling_score;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
 static UA_StatusCode 
 endServerMethod(void *handle, const UA_NodeId nodeId, size_t inputSize,
 		       const UA_Variant *input, size_t optputSize, UA_Variant *output)
@@ -96,7 +234,8 @@ static UA_StatusCode
 reDrawMethod(void *handle, const UA_NodeId nodeId, size_t inputSize,
 		       const UA_Variant *input, size_t optputSize, UA_Variant *output)
 {
-	vgus_init(info);
+	block_client();
+	vgus_init(opc_info_232);
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -117,17 +256,11 @@ addReDrawMethod(UA_Server *server)
 				&reDrawMethod, NULL, 0, NULL, 0, NULL, NULL);
 }
 
-int start_opc_server(char *ip, char *port)
+int start_opc_server(struct send_info *info_458, struct send_info *info_232)
 {
 
-	if (daemon(0, 1) < 0){
-		return -4;
-	}
-
-	if (!already_running(LOCK_FILE)){
-		return -5;
-	}
-
+	opc_info_232 = info_232;
+	opc_info_458 = info_458;
 	UA_ServerNetworkLayer nl;
 	UA_ServerConfig config = UA_ServerConfig_standard;
         
@@ -137,24 +270,15 @@ int start_opc_server(char *ip, char *port)
 	config.networkLayersSize = 1;
 	UA_Server *server = UA_Server_new(config);
 
-	info = open_port(ip, port);
-	vgus_init(info);
-
-	addUpdateCallback(server);
 
 	addReDrawMethod(server);
 	addEndServerMethod(server);
+	addGetTemperatureCallback(server);
+	addSetWarnCallback(server);
+	addSetCoolingCallback(server);
+	addSetCoolingCallback(server);
 
-	UA_StatusCode retval = UA_Server_run(server, &running);
+	UA_StatusCode retval = UA_Server_run(server, &opc_running);
 	UA_Server_delete(server);
 	return (int)retval;
 }
-
-
-//int main()
-//{
-//	start_opc_server("10.193.20.217", "23");
-//	return 0;
-//}
-
-

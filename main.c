@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "vgus_controller.h"
 #include "open62541.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "vgus.h"
+#include "usr-410s.h"
+#include "client.h"
 
 
 #define isCMD(c)  (cmd & (1 << c))
@@ -30,8 +31,6 @@ static char *find_str(char *s, char *b, int str_num)
 	return NULL;
 
 }
-#define OPC_SERVER 0x01;
-#define PIPE_SERVER 0x02;
 #define set_warn_v_valid(v)  ((v) |= 0xffff0000)
 #define is_warn_v_valid(v)   (((v) & 0xFFFF0000) == 0xFFFF0000)
 #define get_warn_v(v)        ((v) & 0xFFFF)
@@ -47,6 +46,9 @@ int main(int argc, char **argv)
 	int target_server = 0;
 	int latency = 0;
 	int high_warn_v, low_warn_v;
+	int heating = 0;
+        int cooling = 0;	
+	int char *p;
 	char *usage = "Usage: vgus [options] [date]\n \
 	       			-u: set opc-server UA_NODEID_STRING\n \
 				-p -i: the modbus port used \n \
@@ -73,56 +75,44 @@ int main(int argc, char **argv)
 				case 'i':
 					ip = strndup(optarg, strlen("255.255.255.255"));
 					break;
-				case 'p':
-					port = strndup(optarg, strlen("65536"));
-					break;
-				case 'o':
-					cmd |= 1 << OPC_SERVER_CMD;
-					break;
 				case 'k':
 					cmd |= 1 << KILL_SERVER_CMD;
 					break;
-				case 'i':
+				case 'p':
 					cmd |= 1 << PRINT_INFO_CMD;
-					break;
-				case 's':
-					if (strncmp("opc", optarg, 3) == 0)
-						target_server = OPC_SERVER;
-				       	else
-				       		target_server = PIPE_SERVER;	       
-					cmd |= 1 << SWITCH_SERVER_CMD;
 					break;
 				case 'g':
 					cmd |= 1 << GET_TEMPERATURE_CMD;	
 					break;
+				case 'h':
+					heating = atoi(optarg);
+				       	cmd |=  1 << SET_HEATING_CMD;	
+					break;
+				case 'c':
+					cooling = atoi(optarg);
+				       	cmd |=  1 << SET_COOLING_CMD;	
+					break;
 				case 'l':
 					latency = atoi(optarg);
-					if (latency > Y_x_max || latency < Y_x_min){
-						printf("Error: the range of -s is %d - %d\n", Y_x_min, Y_x_max);
-						return 0;
-					}
 				       	cmd |=  1 << SET_LATENCY_CMD;	
 					break;
 				case 'w':
-					char *p = strchr(optarg, ':');
-					if (p){
-						print("%s", usage);
+					p = strchr(optarg, ':');
+					if (!p){
+						printf("%s", usage);
 						return 0;
 					}
 					
 					if (p != optarg){
 						*p = '\0';
 						high_warn_v = atoi(optarg);
-						if (high_warn_v > Y_t_min && high_warn_v < Y_t_max)
-							set_warn_v_valid(high_warn_v);
+						set_warn_v_valid(high_warn_v);
 					}
 					
 					if (*(p + 1) != '\0'){
 						low_warn_v = atoi(p + 1);
-						if (low_warn_v > Y_t_min && low_warn_v < Y_t_max){
-							if (low_warn_v < high_warn_v)
-								set_warn_v_valid(low_warn_v);
-						}
+						if (low_warn_v < high_warn_v)
+							set_warn_v_valid(low_warn_v);
 					}
 
 					if (!is_warn_v_valid(high_warn_v) && 
