@@ -38,6 +38,7 @@ struct grid_frame
 	unsigned short describe_addr;
 	unsigned short variable_addr;
 	unsigned short number;
+	unsigned short interval;
 	struct curve_frame *curve_frame;
 	unsigned short color;
 };

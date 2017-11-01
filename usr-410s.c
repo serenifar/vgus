@@ -99,6 +99,7 @@ static struct send_info *create_connect(char *ip, char *port)
 		return NULL;
 	}
 	info_header->info_header = info;
+	info->header = info_header;
 	pthread_rwlock_init(&(info_header->rwlock), NULL);
 	return info;
 }
@@ -205,7 +206,7 @@ int send_all_data(struct send_info *info)
 			printf("Data will be drop\n");
 			i->len = 0;
 		}
-		pthread_rwlock_rdlock(&(i->rwlock));
+		pthread_rwlock_unlock(&(i->rwlock));
 		i = i->next;
 	 }
 	return wlen;
@@ -217,7 +218,8 @@ int send_data(struct send_info *info)
 	int skfd = info->header->info_header->skfd;
 	pthread_rwlock_rdlock(&(info->rwlock));
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
-	pthread_rwlock_rdlock(&(info->rwlock));
+	info->len -= wlen;
+	pthread_rwlock_unlock(&(info->rwlock));
 	return wlen;
 }
 
@@ -227,7 +229,7 @@ int send_and_recv_data(struct send_info *info, char *buf, int len)
 	int skfd = info->header->info_header->skfd;
 	pthread_rwlock_rdlock(&(info->rwlock));
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
-	pthread_rwlock_rdlock(&(info->rwlock));
+	pthread_rwlock_unlock(&(info->rwlock));
 	
        	wlen = recv(skfd, buf, len, 0);	
 	return wlen;

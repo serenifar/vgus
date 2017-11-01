@@ -13,7 +13,7 @@
 #include "usr-410s.h"
 #include "modbus_485.h"
 #include "vgus.h"
-#define pr() //printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+#define pr() printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 
 static unsigned short  ModBusCRC (unsigned char *ptr, int size) 
 {
@@ -56,18 +56,21 @@ static int get_temperature(struct send_info *info_485)
 	unsigned int tem;
 	int len;
 	unsigned short crc;
-
+pr();
 	copy_to_buf(info_485, sbuf, sizeof(sbuf));
+pr();
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
        	if (len < 2){
 		return -1;
 	}
 
+pr();
 	 crc = ModBusCRC(rbuf, len - 2);
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
 	
+pr();
 	 tem = (rbuf[3] << 8) + rbuf[4];	
 	if (tem == 0)
 		tem = (rbuf[5] << 8) + rbuf[6];	
@@ -107,14 +110,19 @@ int set_relay(struct send_info *info_485)
 	else
 		relay_buf[7] = sw;
 
+	pr();
 	copy_to_buf(info_485, relay_buf, sizeof(relay_buf));
+	pr();
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
+	pr();
 
        	if(len < 0){
 		printf("send error\n");
 		return -1;
 	}
+	pr();
 	 crc = ModBusCRC(rbuf, len - 2);
+	pr();
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
@@ -132,17 +140,24 @@ int red = 1;
 int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 {
 	int tem;
+	pr();
 	if (interval_value < interval_time){
+	pr();
 		interval_value++;
 	}else{
+	pr();
 		if ((tem = get_temperature(info_485)) > 0){
 			modbus_info.temperature = tem;
 		}
+	printf("temperature = %d\n", tem);
 		
+	pr();
 		tem = modbus_info.temperature;
 		temperature_update_curve(info_232, (unsigned int)tem);
+	pr();
 		interval_value = 0;
 		if((unsigned int )tem > modbus_info.warn_max || (unsigned int)tem < modbus_info.warn_min){
+	pr();
 			set_warn_icon(info_232, red);
 			red = 0 ? 1 : red > 0;	
 		}
@@ -150,9 +165,12 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 		if ((unsigned int)tem >= modbus_info.extremity){
 			modbus_info.cooling_score = COOLING_SCORE_MAX;	
 			modbus_info.heating_score = 0;	
+	pr();
 		}
 	}
+	pr();
 	set_relay(info_485);
+	pr();
 	return 0;
 }
 

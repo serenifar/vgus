@@ -18,7 +18,7 @@
 #include "opc_server.h"
 #include "modbus_485.h"
 
-#define pr() //printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+#define pr() printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 
 int lock_file(int fd)
 {
@@ -115,9 +115,11 @@ void *start_send_data(void *arg)
 	struct send_info *info_485 = info[0];
 	struct send_info *info_232 = info[1];
 	while (*running){
-
+		pr();
 		modbus_callback(info_485, info_232);
+		pr();
 		send_data(info_232);
+		pr();
 		usleep(200000);
 	}
 	pthread_exit((void *)0);
@@ -129,9 +131,9 @@ int start_server(char *ip)
 	if ((fd = is_already_running(LOCK_FILE)) < 0)
 		return 0;
 	
-	if (daemon(0, 1) < 0){
-		return -1;
-	}
+//	if (daemon(0, 1) < 0){
+//		return -1;
+///	}
 	
 	if (lock_running(fd) < 0){
 		return -1;
@@ -148,6 +150,9 @@ int start_server(char *ip)
 	if (!info_232){
 		return -3;
 	}
+	
+	vgus_init(info_232);	
+	send_data(info_232);
 
 	struct send_info *info[2] = {info_485, info_232};	
 
@@ -158,7 +163,6 @@ int start_server(char *ip)
 	}
 	
 
-	vgus_init(info_232);	
 
 
 	struct send_info *info_xenomai = dup_send_info(info_232);

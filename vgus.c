@@ -60,7 +60,7 @@ static int  write_curve_values(char *buf, int len, unsigned short channel, unsig
 static int  write_regs(char *buf, char addr, char *chars, int len) 
 {
 	set_reg_head(buf, addr);
-	set_reg_len(buf, len + 3);
+	set_reg_len(buf, len + 2);
 	set_reg_cmd(buf, 0x80);
 	memcpy(buf + 5, chars, len);
 	return len + 5;
@@ -71,7 +71,7 @@ static int  write_regs_short(char *buf, char addr, unsigned short data)
 	char temp[2];
 	temp[0] = h_16(data);
        	temp[1] = l_16(data);
-       	write_regs(buf, addr, temp, 2 );
+       	write_regs(buf, addr, temp, 2);
 	return 7;
 }
 
@@ -102,12 +102,14 @@ static void set_grid(struct send_info *info, struct grid_frame *grid)
 	unsigned short color0 = grid->color;
 
 	write_wire_header(buf, grid->variable_addr);
-	unsigned short y = curve->apex[1];
+	unsigned short y = curve->apex[1] + curve->width;
 	unsigned short x = curve->apex[0];
-	unsigned short interval = curve->width / grid->number;
-	int i = 0;
-	for (;y <= curve->apex[1] + curve->width; y += interval)
+	unsigned short interval = grid->interval;
+	int i = 0, j;
+	for (j =0; j < grid->number; j++){
+		y -= interval;
 		write_pixel_pair_n(buf, x, y, x + curve->length, y, color0, i++);
+	}
 	len = i * 10 + 10;
 	set_var_len(buf, (len - 3));
 	set_graph_num(buf, i);
@@ -164,15 +166,15 @@ static void set_axis_values(struct send_info *info, struct axis_values *axis_v)
 	char buf[255] = {0};
 
 	int i;
-	short value = axis_v->init;
+	unsigned short value = axis_v->init;
 	unsigned short addr = axis_v->variable_addr;
 	for (i = 0; i < axis_v->number; i++){
-		write_var(buf, addr, value);
+		write_var((buf + i * 8), addr, value);
 		value += axis_v->interval;
 		addr += axis_v->interval_addr;
 	}
 	
-	copy_to_buf(info, buf, 7 * axis_v->number);
+	copy_to_buf(info, buf, 8 * axis_v->number);
 		
 } 
 
@@ -355,7 +357,8 @@ int temperature_screen_init()
 
 	t_screen->grid.describe_addr = 0x13c0;
 	t_screen->grid.variable_addr = 0x53c0;
-	t_screen->grid.number = 7;
+	t_screen->grid.number = 6;
+	t_screen->grid.interval = 40;
         t_screen->grid.curve_frame = &temperature_curve_frame;
 	t_screen->grid.color = 0xFC00;
 
@@ -408,13 +411,14 @@ int xenomai_screen_init(){
 
 	x_screen->grid.describe_addr = 0x0440;
 	x_screen->grid.variable_addr = 0x4500;
-	x_screen->grid.number = 11;
+	x_screen->grid.number = 10;
+	x_screen->grid.interval = 30;
         x_screen->grid.curve_frame = &xenomai_curve_frame;
 	x_screen->grid.color = 0xFC00;
 
 	x_screen->x_axis.number = 11;
 	x_screen->x_axis.init = 500;
-	x_screen->x_axis.interval = 25;
+	x_screen->x_axis.interval = 250;
         x_screen->x_axis.variable_addr = 0x4020;
 	x_screen->x_axis.interval_addr = 0x20;
 
@@ -438,14 +442,21 @@ void vgus_init(struct send_info *info)
 	temperature_screen_init();
 	set_title_var(info, &x_screen->title, "Xenomai Interrupt Latency");
 	curve_clear_data(info, &x_screen->curve);
+	send_data(info);
 	curve_clear_data(info, &t_screen->curve);
+	send_data(info);
 	set_grid(info, &x_screen->grid);
 	set_grid(info, &t_screen->grid);
+	send_data(info);
 	set_axis(info, &x_screen->axis);
 	set_axis(info, &t_screen->axis);
+	send_data(info);
 	set_axis_values(info, &x_screen->x_axis);
 	set_axis_values(info, &x_screen->y_axis);
+	send_data(info);
 	set_axis_values(info, &t_screen->x_axis);
 	set_axis_values(info, &t_screen->y_axis);
+	send_data(info);
 	switch_screen(info, t_screen->screen_id);
+	send_data(info);
 }
