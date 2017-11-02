@@ -15,7 +15,7 @@
 #include "vgus.h"
 #include "usr-410s.h"
 
-#define pr() //printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+#define pr() printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 
 struct temperature_screen *t_screen;
 struct curve_frame temperature_curve_frame;
@@ -75,12 +75,12 @@ static int  write_regs_short(char *buf, char addr, unsigned short data)
 	return 7;
 }
 
-static int  read_reg(char *buf, char addr, int len)
+static int  read_regs(char *buf, char addr, int len)
 {
 		set_reg_head(buf, addr);
-		set_reg_len(buf, 4);
 		set_reg_cmd(buf, 0x81);
-		*(buf + 5) = (len);
+		*(buf + 5) = (char)(len & 0xFF);
+		set_reg_len(buf, 3);
 		return 6;
 }
 
@@ -180,7 +180,7 @@ static void set_axis_values(struct send_info *info, struct axis_values *axis_v)
 
 static void up_vernier(struct vernier *vernier, unsigned short n)
 {
-	if (vernier->vernier < vernier->curve_frame->length)
+	if (vernier->vernier > 0xffff)
 		return ;
 	vernier->vernier += n;
 }
@@ -210,6 +210,7 @@ static void set_vernier_value(struct send_info *info,struct xenomai_screen *xeno
 	int len = 0;
 	struct realtime_curve *curve= &xenomai->curve;
 	float y1;  
+        char buf[32] = {0};
 	if ( xenomai->vernier.vernier > curve->curve_frame->length / curve->x_interval){
 		x = ( curve->curve_frame->apex[0] + curve->curve_frame->length);
 	}
@@ -221,19 +222,19 @@ static void set_vernier_value(struct send_info *info,struct xenomai_screen *xeno
 	y1 = (((float)(data & 0xffff ) - curve->y_min) * (curve->curve_frame->width_valid)) / (curve->y_max - curve->y_min);
 	y =curve->curve_frame->width - (unsigned short)y1 + curve->curve_frame->apex[1];
 	x -= 8;
-        char buf[32] = {0};
 	len = 8;
 	write_var(buf, xenomai->vernier.var.variable_addr, data);
 	len += 10;	
 	unsigned short temp[2];
 	temp[0] = x; temp[1] = y;
-	write_vars((buf + 8),(xenomai->vernier.var.describe_addr + 0x01), 2, temp );
+	write_vars((buf + 8),2, (xenomai->vernier.var.describe_addr + 0x01), temp );
 	copy_to_buf(info, buf, len);	
 }
 
 void xenomai_update_curve(struct send_info *info, unsigned int data)
 {
 	set_curve_value(info, data, x_screen->curve.channel);
+
 	up_vernier(&x_screen->vernier, 1);
 	set_vernier_value(info, x_screen, data);
 } 
@@ -299,7 +300,7 @@ static void realtime_curve_init(struct send_info *info, struct realtime_curve *c
 	len += write_var(buf + len, curve->describe_addr + 0x05, y_centre);
 
 	unsigned short y_centre_v = (curve->y_max - curve->y_min) / 2 + curve->y_min;
-	len += write_var(buf + len, curve->describe_addr + 0x05, y_centre_v);
+	len += write_var(buf + len, curve->describe_addr + 0x06, y_centre_v);
 	
 	copy_to_buf(info, buf, len);	
 }
@@ -326,6 +327,64 @@ void set_warn_icon(struct send_info *info, int red)
 	unsigned short v = red;
 	len = write_var(buf, t_screen->warn_icon.variable_addr, v);
 	copy_to_buf(info, buf, len);
+}
+
+int parse_read_reg(char *buf, char addr, int len)
+{
+	char *p_index = buf;
+	while(len > 0){
+		if(p_index[0] != h_16(frame_heafer)){
+			p_index++;
+			len--;
+			continue;
+		}
+		if(p_index[1] != l_16(frame_heafer)){
+			p_index++;
+			len--;
+			continue;
+		}
+		if(p_index[3] != (char)0x81){
+			p_index++;
+			len--;
+			continue;
+		}
+
+		if(len < p_index[2] + 3)
+			return 0;
+		if(p_index[4] == (char)addr){
+			return (p_index - buf) + 6;
+		}
+		
+		len -= p_index[2] + 3;
+		p_index += p_index[2] + 3;
+
+	}
+	return 0;
+}
+
+unsigned int get_touch_coord(struct send_info *info)
+{
+	char buf[16];
+	int len;
+	int index = 0;
+	unsigned char *p;
+	len = read_regs(buf, 0x05, 6);
+	copy_to_buf(info, buf, len);
+	len = send_and_recv_data(info, buf, 16);
+	if (strncmp(buf, "lift", 4) == 0){
+		return ~0;
+	}
+	if (!(index = parse_read_reg(buf, 0x05, len)))
+		return 0;
+
+	if (buf[index] != 0x5a)
+		return 0;
+	
+	if (buf[index + 1] == 0x02)  // lift 
+		return ~0;
+	p = (unsigned char *)(buf + index + 2);
+	return p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3];
+
 }
 
 int temperature_screen_init()
@@ -407,6 +466,7 @@ int xenomai_screen_init(){
 	x_screen->vernier.var.variable_addr = 0x42e0;
 	x_screen->vernier.var.describe_addr = 0x0300;
 	x_screen->vernier.vernier = 0;
+	x_screen->vernier.curve_frame = &xenomai_curve_frame;
 	
 	x_screen->title.describe_addr = 0x0000;
 	x_screen->title.variable_addr = 0x4000;

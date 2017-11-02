@@ -86,26 +86,132 @@ pthread_mutex_t blocking_lock;
 #define block_opc_client() pthread_mutex_lock(&blocking_lock); blocking = 1
 #define unblock_opc_client() blocking = 0; pthread_mutex_unlock(&blocking_lock)
 
+#define COORD_SAVE_MAX 10
+struct {
+	unsigned short screen_id;
+	struct{
+		unsigned short x;
+		unsigned short y;
+	}coord[COORD_SAVE_MAX];
+	int len;
+	int index;
+	unsigned int average_x;
+	int direction_trend; //  0 unknown, >0 right, <0 lift.  
+
+}touch;
+
+int get_touch_instructions(struct send_info *info)
+{
+	char rbuf[16] = {0};
+	int i;
+	int rlen = 0;
+	int try = 50;  //wait 1s
+	int skfd = info->header->info_header->skfd;
+	unsigned int coord;
+	unsigned int average_x = 0;
+	unsigned int average_y = 0;
+	unsigned int variance = 0;
+	memset(&touch, 0 , sizeof(touch));
+	while (1){
+		rlen = recv(skfd, rbuf, 16, 0);
+		if (strncmp(rbuf, "press0", 6) == 0){
+			touch.screen_id = t_screen->screen_id;
+		}
+		else if(strncmp(rbuf, "press1", 6) == 0){
+			touch.screen_id = x_screen->screen_id;
+		}
+		else
+			continue;	
+		break;	
+	}
+	
+	while (try--){
+		coord = get_touch_coord(info);
+		if(coord == 0xFFFFFFFF){
+			break;
+		}
+		if (!coord){
+		
+			usleep(100000);
+			continue;
+		}
+		touch.coord[touch.index].x =(unsigned short)(coord >> 16);	
+		touch.coord[touch.index].y =(unsigned short)(coord & 0xFFFF);
+		
+		touch.len++;
+		if(touch.len > 2){
+			if (touch.index == 0){
+				average_x = touch.coord[COORD_SAVE_MAX -1].x +
+					touch.coord[COORD_SAVE_MAX - 2].x;
+			}else if (touch.index == 1){
+				average_x = touch.coord[0].x +
+					touch.coord[COORD_SAVE_MAX -1].x;
+			
+			}else {
+				average_x = touch.coord[touch.index - 1].x +
+					touch.coord[touch.index - 2].x;
+			}
+			average_x >>= 2;
+			if (average_x > (touch.coord[touch.index].x >> 1)){
+//				printf("moving to lift\n");
+				touch.direction_trend--;
+			}
+			else if(average_x < (touch.coord[touch.index].x >> 1)){
+//				printf("moving to right\n");
+				touch.direction_trend++;
+			
+			}	
+			else{
+//				printf("no moving\n");
+			}
+		}
+
+		if (touch.index++ >= COORD_SAVE_MAX)
+			touch.index = 0;
+		usleep(20000);
+		try++;
+
+	}
+	
+	touch.len = touch.len > COORD_SAVE_MAX ? COORD_SAVE_MAX : touch.len;
+
+	if (touch.len == 0)
+		return 0;
+	for (i = 0; i < touch.len; i++){
+		average_y += touch.coord[i].y;	
+	}
+	
+	average_y /= i;
+	
+	for (i = 0; i < touch.len; i++){
+		variance += average_y > touch.coord[i].y ?
+			(average_y - touch.coord[i].y) : (touch.coord[i].y - average_y);
+	}
+//	printf("variance = %d\n", variance);
+//	printf("touch.direction_trend = %d\n", touch.direction_trend);
+
+	return touch.direction_trend;
+}
 void *start_touch(void *arg)
 {
 	struct send_info *info = arg;
-	char rbuf[256];
-	int rlen;
-	int skfd = info->header->info_header->skfd;
-	int i;
+	int ret;
+	int is_in_temperature = 1;
 	blocking = 0;
 	pthread_mutex_init(&blocking_lock, NULL);
 	while(*running){
-		rlen = recv(skfd, rbuf, 256, 0);
-		block_opc_client();
-//		if (rlen > 0){
-//			for (i = 0; i < rlen; i++){
-//				printf("%x ",rbuf[i]);
-//			}	
-//			printf("\n");
-//		}
-		printf("%s\n",rbuf);
-		unblock_opc_client();
+		ret = get_touch_instructions(info);
+		if (ret < 0 && touch.screen_id == x_screen->screen_id){ // we are in xenomai and silde to lift 
+			switch_screen(info, t_screen->screen_id);
+			unblock_opc_client();
+		}
+		else if (ret > 0 && is_in_temperature == t_screen->screen_id){
+			block_opc_client();
+			switch_screen(info, x_screen->screen_id);
+		}
+		else 
+			continue;
+		send_data(info);
 	}
 	pthread_exit((void *)0);
 }
@@ -151,7 +257,6 @@ int start_server(char *ip)
 	
 	vgus_init(info_232);	
 	send_data(info_232);
-
 	struct send_info *info[2] = {info_485, info_232};	
 
 	retval = pthread_create(&p_send, NULL, start_send_data, (void *)info);

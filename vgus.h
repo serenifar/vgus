@@ -164,6 +164,10 @@ struct xenomai_screen
 #define set_reg_cmd(buf, cmd) buf[3] = (cmd)
 
 #define write_reg(buf, addr, data) write_regs(buf, addr, &data, 1)
+#define read_reg(buf, addr, data) read_regs(buf, addr, &data, 1)
+
+
+
 // multiple processes lock 
 #define write_lock(fd, offset, whence, len) \
 		lock_reg((fd), F_SETLK, F_WRLCK, (offset), (whence), (len))
@@ -189,4 +193,5 @@ void temperature_update_curve(struct send_info *info, unsigned int data);
 void vgus_init(struct send_info *info);
 void set_warn_icon(struct send_info *info, int red);
 int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int min);
+void switch_screen(struct send_info *info,  unsigned short screen_id);
 #endif

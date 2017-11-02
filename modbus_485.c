@@ -47,7 +47,7 @@ struct modbus_info
 
 };
 
-struct modbus_info modbus_info = {240, 75, 25, 0, 0, 800};
+struct modbus_info modbus_info = {240, 750, 230, 0, 0, 800};
 
 static int get_temperature(struct send_info *info_485)
 {
@@ -148,7 +148,7 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 		if ((tem = get_temperature(info_485)) > 0){
 			modbus_info.temperature = tem;
 		}
-		
+
 		tem = modbus_info.temperature;
 		temperature_update_curve(info_232, (unsigned int)tem);
 		interval_value = 0;

@@ -15,7 +15,7 @@
 
 #include "usr-410s.h"
 
-#define pr() // printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+#define pr()  printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 #define DEF_BUFF_SIZE 1024
 
 
@@ -231,9 +231,7 @@ int send_and_recv_data(struct send_info *info, char *buf, int len)
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
 	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
-	pr();	
        	wlen = recv(skfd, buf, len, 0);	
-	pr();	
 	return wlen;
 }	
 
