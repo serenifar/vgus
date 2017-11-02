@@ -33,8 +33,8 @@ static unsigned short  ModBusCRC (unsigned char *ptr, int size)
 	return V;   
 }
 
-#define HEATING_SCORE_MAX 10
-#define COOLING_SCORE_MAX 10
+#define HEATING_SCORE_MAX 3
+#define COOLING_SCORE_MAX 3
 
 struct modbus_info
 {
@@ -47,30 +47,25 @@ struct modbus_info
 
 };
 
-struct modbus_info modbus_info = {240, 75, 25, 0, 0, 80};
+struct modbus_info modbus_info = {240, 75, 25, 0, 0, 800};
 
 static int get_temperature(struct send_info *info_485)
 {
 	unsigned char rbuf[32];
-	char sbuf[] = {0x01, 0x03, 0x00, 0x00,0x00, 0x02, 0x3d, 0xb9};
+	char sbuf[] = {0x01, 0x03, 0x00, 0x00,0x00, 0x02, 0xc4, 0x0b};
 	unsigned int tem;
 	int len;
 	unsigned short crc;
-pr();
 	copy_to_buf(info_485, sbuf, sizeof(sbuf));
-pr();
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
        	if (len < 2){
 		return -1;
 	}
 
-pr();
 	 crc = ModBusCRC(rbuf, len - 2);
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
-	
-pr();
 	 tem = (rbuf[3] << 8) + rbuf[4];	
 	if (tem == 0)
 		tem = (rbuf[5] << 8) + rbuf[6];	
@@ -79,26 +74,33 @@ pr();
 	
 }
 
-int cycle_period = 5;
-int cycle_value = 0; 
-#define HEATER_SW   0x01
-#define COOLER_SW   0x00
-#define open_heater(sw)  (sw) |= (1 << HEATER_SW)
-#define open_cooler(sw)  (sw) |= (1 << COOLER_SW)
+//int cycle_period = 5;
+//int cycle_value = 0; 
+//#define HEATER_SW   0x01
+//#define COOLER_SW   0x00
+//#define open_heater(sw)  (sw) |= (1 << HEATER_SW)
+//#define open_cooler(sw)  (sw) |= (1 << COOLER_SW)
+//static char get_relay_value()
+//{
+//	char sw = 0;
+//	if (modbus_info.heating_score - cycle_value > 0)
+//		open_heater(sw);
+//	if (modbus_info.cooling_score - cycle_value > 0)
+//		open_cooler(sw);
+//	cycle_value++;
+//	if (cycle_value <  HEATING_SCORE_MAX)
+//		cycle_value = 0;
+//	return sw;
+//}
+
 static char get_relay_value()
 {
 	char sw = 0;
-	if (modbus_info.heating_score - cycle_value > 0)
-		open_heater(sw);
-	if (modbus_info.cooling_score - cycle_value > 0)
-		open_cooler(sw);
-	cycle_value++;
-	if (cycle_value <  HEATING_SCORE_MAX)
-		cycle_value = 0;
+	sw |= modbus_info.heating_score << 2;
+	sw |= modbus_info.cooling_score;
 	return sw;
 }
-
-char relay_buf[] = {0x02, 0x0F, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00};
+unsigned char relay_buf[] = {0x02, 0x0F, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00};
 int set_relay(struct send_info *info_485)
 {
 	unsigned char rbuf[32];
@@ -109,20 +111,18 @@ int set_relay(struct send_info *info_485)
 		return 0;
 	else
 		relay_buf[7] = sw;
-
-	pr();
+	crc = ModBusCRC(relay_buf, 8);
+	
+	relay_buf[8] = crc >> 8;
+	relay_buf[9] = crc & 0xff;
 	copy_to_buf(info_485, relay_buf, sizeof(relay_buf));
-	pr();
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
-	pr();
 
        	if(len < 0){
 		printf("send error\n");
 		return -1;
 	}
-	pr();
 	 crc = ModBusCRC(rbuf, len - 2);
-	pr();
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
@@ -137,40 +137,35 @@ unsigned int modbus_get_temperature()
 int interval_time = 5;
 int interval_value = 0;
 int red = 1;
+int extremity = 0;
 int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 {
 	int tem;
-	pr();
 	if (interval_value < interval_time){
-	pr();
 		interval_value++;
+		set_relay(info_485);
 	}else{
-	pr();
 		if ((tem = get_temperature(info_485)) > 0){
 			modbus_info.temperature = tem;
 		}
-	printf("temperature = %d\n", tem);
 		
-	pr();
 		tem = modbus_info.temperature;
 		temperature_update_curve(info_232, (unsigned int)tem);
-	pr();
 		interval_value = 0;
 		if((unsigned int )tem > modbus_info.warn_max || (unsigned int)tem < modbus_info.warn_min){
-	pr();
-			set_warn_icon(info_232, red);
-			red = 0 ? 1 : red > 0;	
+			set_warn_icon(info_232, red &0x01);
+			red  = red > 0 ? 0 : 1;	
 		}
 
 		if ((unsigned int)tem >= modbus_info.extremity){
-			modbus_info.cooling_score = COOLING_SCORE_MAX;	
-			modbus_info.heating_score = 0;	
-	pr();
+			modbus_info.cooling_score = COOLING_SCORE_MAX;
+			extremity = 1;
+		}
+		if (extremity == 1 && (unsigned int)tem <= modbus_info.warn_max){
+			extremity = 0;
+			modbus_info.cooling_score = 0;
 		}
 	}
-	pr();
-	set_relay(info_485);
-	pr();
 	return 0;
 }
 

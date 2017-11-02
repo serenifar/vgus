@@ -23,6 +23,7 @@ struct curve_frame
 	unsigned short length;
 	unsigned short apex[2];
         unsigned short width;	
+	unsigned short width_valid;
 };
 
 struct axis_frame

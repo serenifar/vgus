@@ -98,12 +98,13 @@ void *start_touch(void *arg)
 	while(*running){
 		rlen = recv(skfd, rbuf, 256, 0);
 		block_opc_client();
-		if (rlen > 0){
-			for (i = 0; i < rlen; i++){
-				printf("%x ",rbuf[i]);
-			}	
-			printf("\n");
-		}
+//		if (rlen > 0){
+//			for (i = 0; i < rlen; i++){
+//				printf("%x ",rbuf[i]);
+//			}	
+//			printf("\n");
+//		}
+		printf("%s\n",rbuf);
 		unblock_opc_client();
 	}
 	pthread_exit((void *)0);
@@ -115,11 +116,8 @@ void *start_send_data(void *arg)
 	struct send_info *info_485 = info[0];
 	struct send_info *info_232 = info[1];
 	while (*running){
-		pr();
 		modbus_callback(info_485, info_232);
-		pr();
 		send_data(info_232);
-		pr();
 		usleep(200000);
 	}
 	pthread_exit((void *)0);
@@ -162,9 +160,6 @@ int start_server(char *ip)
 		return -5;
 	}
 	
-
-
-
 	struct send_info *info_xenomai = dup_send_info(info_232);
 
 	if (!info_xenomai){

@@ -15,7 +15,7 @@
 
 #include "usr-410s.h"
 
-#define pr() //printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+#define pr() // printf("%s %s %d\n", __FILE__, __func__, __LINE__)
 #define DEF_BUFF_SIZE 1024
 
 
@@ -129,7 +129,7 @@ struct send_info *dup_send_info(struct send_info *info)
 	}
 	info_n->ip = info->ip;
 	info_n->port = info->port;
-	info->skfd = 0;
+	info_n->skfd = 0;
 	info_n->prev = info;
 	info->next = info_n;
 	info_n->header = info->header;
@@ -229,9 +229,11 @@ int send_and_recv_data(struct send_info *info, char *buf, int len)
 	int skfd = info->header->info_header->skfd;
 	pthread_rwlock_rdlock(&(info->rwlock));
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
+	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
-	
+	pr();	
        	wlen = recv(skfd, buf, len, 0);	
+	pr();	
 	return wlen;
 }	
 

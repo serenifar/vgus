@@ -190,7 +190,6 @@ static int set_curve_values(struct send_info *info, unsigned short *buffer, int 
 	char buf[255] = {0};
 	int length  = 250 ? len : len > 250;
 	write_curve_values(buf, length, channel, buffer);
-	
 	copy_to_buf(info, buf, (length * 2 + 5));
 	return length;
 
@@ -211,7 +210,7 @@ static void set_vernier_value(struct send_info *info,struct xenomai_screen *xeno
 	int len = 0;
 	struct realtime_curve *curve= &xenomai->curve;
 	float y1;  
-	if ( xenomai->vernier.vernier > curve->curve_frame->width / curve->x_interval){
+	if ( xenomai->vernier.vernier > curve->curve_frame->length / curve->x_interval){
 		x = ( curve->curve_frame->apex[0] + curve->curve_frame->length);
 	}
 	else {
@@ -219,7 +218,7 @@ static void set_vernier_value(struct send_info *info,struct xenomai_screen *xeno
 	}
 
 //	y = (data & 0xffff - Y_min) / ((Y_max - Y_min) / Y_hight_pixel) ;
-	y1 = (((float)(data & 0xffff ) - curve->y_min) * (curve->curve_frame->width)) / (curve->y_max - curve->y_min);
+	y1 = (((float)(data & 0xffff ) - curve->y_min) * (curve->curve_frame->width_valid)) / (curve->y_max - curve->y_min);
 	y =curve->curve_frame->width - (unsigned short)y1 + curve->curve_frame->apex[1];
 	x -= 8;
         char buf[32] = {0};
@@ -241,40 +240,48 @@ void xenomai_update_curve(struct send_info *info, unsigned int data)
 
 void temperature_update_curve(struct send_info *info, unsigned int data)
 {
+	char buf[16];
+	unsigned short dat = (unsigned short)(data & 0xffff);
 	set_curve_value(info, data, t_screen->curve.channel);
+	int len = write_var(buf, t_screen->temp.variable_addr, dat);
+	copy_to_buf(info, buf, len);
 }
 
 int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int min)
 {
-	char buf[255] = {0};
+	char buf[64];
 	int len = 0;
-	float y1;
-	struct warn_frame *warn = &(t_screen->warn); 
-	struct curve_frame *curve_frame = warn->curve_frame;
-	struct realtime_curve *curve = &(t_screen->curve); 
-	unsigned short y;
-	unsigned short x = curve_frame->apex[0];
-	int i;
-	
-	if (max > curve->y_max || min < curve->y_min)
-		return -1;
-	
-	write_wire_header(buf, warn->variable_addr);
-
-	y1 = (((float)(max & 0xffff ) - curve->y_min) *
-		(curve_frame->width)) / (curve->y_max - curve->y_min);
-	y = curve_frame->width - (unsigned short)y1 + curve_frame->apex[1];
-	write_pixel_pair_n(buf, x, y, x + curve_frame->length, y, warn->color_max, i++);
-	
-	y1 = (((float)(max & 0xffff ) - curve->y_min) *
-		(curve_frame->width)) / (curve->y_max - curve->y_min);
-	y = curve_frame->width - (unsigned short)y1 + curve_frame->apex[1];
-	write_pixel_pair_n(buf, x, y, x + curve_frame->length, y, warn->color_max, i++);
-
-	len = i * 10 + 10;
-	set_var_len(buf, (len - 3));
-	set_graph_num(buf, i);
+	unsigned short dat = (unsigned short)(max & 0xffff);
+	len = write_var(buf, t_screen->warn_max.variable_addr, dat);
 	copy_to_buf(info, buf, len);
+	dat = (unsigned short)(min & 0xffff);
+	len = write_var(buf, t_screen->warn_min.variable_addr, dat);
+	copy_to_buf(info, buf, len);
+//	float y1;
+//	struct warn_frame *warn = &(t_screen->warn); 
+//	struct curve_frame *curve_frame = warn->curve_frame;
+//	struct realtime_curve *curve = &(t_screen->curve); 
+//	unsigned short y;
+//	unsigned short x = curve_frame->apex[0];
+//	int i;
+//	
+//	if (max > curve->y_max || min < curve->y_min)
+//		return -1;
+//	
+//	write_wire_header(buf, warn->variable_addr);
+//
+//	
+//	y1 = (((float)(min & 0xffff ) - curve->y_min) * (curve_frame->width_valid)) / (curve->y_max - curve->y_min);
+//	y = curve_frame->width - (unsigned short)y1 + curve_frame->apex[1];
+//	write_pixel_pair_n(buf, x, y, x + curve_frame->length, y, warn->color_min, i++);
+//
+//	y1 = (((float)(max & 0xffff ) - curve->y_min) * (curve_frame->width_valid)) / (curve->y_max - curve->y_min);
+//	y = curve_frame->width - (unsigned short)y1 + curve_frame->apex[1];
+//	write_pixel_pair_n(buf, x, y, x + curve_frame->length, y, warn->color_max, i++);
+//	len = i * 10 + 10;
+//	set_var_len(buf, (len - 3));
+//	set_graph_num(buf, i);
+//	copy_to_buf(info, buf, len);
 	return 0;	
 }
 
@@ -285,10 +292,10 @@ static void realtime_curve_init(struct send_info *info, struct realtime_curve *c
 	unsigned short data = (curve->channel << 8) | curve->x_interval;
 	len = write_var(buf, curve->describe_addr + 0x09, data); 
 	unsigned short nul_y = 0;
-	nul_y = ((curve->curve_frame->width) << 8) / (curve->y_max - curve->y_min);  
+	nul_y = ((curve->curve_frame->width_valid) << 8) / (curve->y_max - curve->y_min);  
 	len += write_var(buf + len, curve->describe_addr + 0x08, nul_y);
 
-	unsigned short y_centre = curve->curve_frame->width / 2 + curve->curve_frame->apex[1];
+	unsigned short y_centre = curve->curve_frame->width_valid / 2 + curve->curve_frame->apex[1];
 	len += write_var(buf + len, curve->describe_addr + 0x05, y_centre);
 
 	unsigned short y_centre_v = (curve->y_max - curve->y_min) / 2 + curve->y_min;
@@ -300,7 +307,7 @@ static void realtime_curve_init(struct send_info *info, struct realtime_curve *c
 void curve_clear_data(struct send_info *info, struct realtime_curve *curve )  // ch = 0 : all ch; 
 {
 	char buf[] = {0xa5, 0x5a, 0x03, 0x80, 0xeb, 0x55};
-	buf[5] += curve->channel;
+	buf[5] += curve->channel + 1;
 	copy_to_buf(info, buf, 6);
 }
 
@@ -316,7 +323,7 @@ void set_warn_icon(struct send_info *info, int red)
 {
 	char buf[16];
 	int len;
-	unsigned short v = 1 ? 0 : (red > 0);
+	unsigned short v = red;
 	len = write_var(buf, t_screen->warn_icon.variable_addr, v);
 	copy_to_buf(info, buf, len);
 }
@@ -332,6 +339,7 @@ int temperature_screen_init()
 	temperature_curve_frame.width = 265;
 	temperature_curve_frame.apex[0] = 55;
 	temperature_curve_frame.apex[1] = 175;
+	temperature_curve_frame.width_valid = 240;
 
 	t_screen->temp.describe_addr = 0x1400;
 	t_screen->temp.variable_addr = 0x5400;
@@ -345,14 +353,15 @@ int temperature_screen_init()
 	t_screen->curve.describe_addr = 0x1020;
 	t_screen->curve.curve_frame = &temperature_curve_frame;
 	t_screen->curve.channel = 0x02;
-	t_screen->curve.y_max = 80;
-	t_screen->curve.y_min = 20;
+	t_screen->curve.y_max = 800;
+	t_screen->curve.y_min = 200;
 	t_screen->curve.x_interval = 20;
 	t_screen->curve.color = 0xF810;
 
 	t_screen->warn.variable_addr = 0x5460;
 	t_screen->warn.describe_addr = 0x1460;
 	t_screen->warn.color_max = 0xF800;
+	t_screen->warn.curve_frame = &temperature_curve_frame;
 	t_screen->warn.color_min = 0x801F;
 
 	t_screen->grid.describe_addr = 0x13c0;
@@ -393,6 +402,7 @@ int xenomai_screen_init(){
 	xenomai_curve_frame.width = 300;
 	xenomai_curve_frame.apex[0] = 55;
 	xenomai_curve_frame.apex[1] = 140;
+	xenomai_curve_frame.width_valid = 300;
 
 	x_screen->vernier.var.variable_addr = 0x42e0;
 	x_screen->vernier.var.describe_addr = 0x0300;
@@ -445,6 +455,9 @@ void vgus_init(struct send_info *info)
 	send_data(info);
 	curve_clear_data(info, &t_screen->curve);
 	send_data(info);
+	realtime_curve_init(info, &t_screen->curve);
+	realtime_curve_init(info, &x_screen->curve);
+	send_data(info);
 	set_grid(info, &x_screen->grid);
 	set_grid(info, &t_screen->grid);
 	send_data(info);
@@ -457,6 +470,7 @@ void vgus_init(struct send_info *info)
 	set_axis_values(info, &t_screen->x_axis);
 	set_axis_values(info, &t_screen->y_axis);
 	send_data(info);
+	temperature_draw_warn(info, 750, 230);
 	switch_screen(info, t_screen->screen_id);
 	send_data(info);
 }
