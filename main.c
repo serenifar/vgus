@@ -9,6 +9,7 @@
 #include "vgus.h"
 #include "usr-410s.h"
 #include "client.h"
+#include "server.h"
 
 
 #define isCMD(c)  (cmd & (1 << c))
@@ -17,20 +18,6 @@
 #define DEFAULT_PORT "23"
 #define DEFAULT_URI "opc.tcp://localhost:16666"
 
-
-
-static char *find_str(char *s, char *b, int str_num)
-{
-	int index = 0;
-	int i;
-	for (i = 0; i < str_num; i++){
-		if (strncmp(s, b + index, strlen(s)) == 0){
-			return b + index + strlen(s);
-		}
-	}
-	return NULL;
-
-}
 #define set_warn_v_valid(v)  ((v) |= 0xffff0000)
 #define is_warn_v_valid(v)   (((v) & 0xFFFF0000) == 0xFFFF0000)
 #define get_warn_v(v)        ((v) & 0xFFFF)
@@ -40,25 +27,21 @@ int main(int argc, char **argv)
 	opterr = 0;
 	char *uri = "opc.tcp://localhost:16666";
 	char *ip = DEFAULT_IP;
-	char *port = DEFAULT_PORT;
 	int cmd = 0;	
-	unsigned int data = 0;
-	int target_server = 0;
-	int latency = 0;
 	int high_warn_v, low_warn_v;
 	int heating = 0;
         int cooling = 0;	
-	int char *p;
+	char *p;
+	unsigned int temp = 0;
 	char *usage = "Usage: vgus [options] [date]\n \
-	       			-u: set opc-server UA_NODEID_STRING\n \
-				-p -i: the modbus port used \n \
-				-o : using opc as the server, the default is pipe \n \
+	       			-u: set opc uri\n \
+				-i: the modbus ip used \n \
 				-k: kill current server\n \
 				-r: redraw the screen\n\
-				-i: print server info\n \
-				-s: switch the server (opc | pipe)\n \
+				-l: print server info\n \
 				-g: get temperature\n \
-				-l: set latency\n \
+				-h: heating -- 0: off; 1: 5W; 2 20W; 3: 25W;  \n \
+				-c: cooling -- 0: off; 1: 1.8W; 2: 5.6W; 3: 7.4W;\n \
 				-w: set warn temperature \n\
 					\"high:low\" : updara the high and low \
 						temperature simultaneous.\n \
@@ -67,13 +50,15 @@ int main(int argc, char **argv)
 				";
 
 	if (argc > 1){
-		while ((ch = getopt(argc, argv, "u:i:p:okis:grl:w:h")) != -1){
+		while ((ch = getopt(argc, argv, "u:i:p:kgrw:h:c:")) != -1){
 			switch(ch){
 				case 'u':
 					uri = strdup(optarg);
+					cmd |= 1 < SET_SERVER;
 					break;
 				case 'i':
 					ip = strndup(optarg, strlen("255.255.255.255"));
+					cmd |= 1 < SET_SERVER;
 					break;
 				case 'k':
 					cmd |= 1 << KILL_SERVER_CMD;
@@ -91,10 +76,6 @@ int main(int argc, char **argv)
 				case 'c':
 					cooling = atoi(optarg);
 				       	cmd |=  1 << SET_COOLING_CMD;	
-					break;
-				case 'l':
-					latency = atoi(optarg);
-				       	cmd |=  1 << SET_LATENCY_CMD;	
 					break;
 				case 'w':
 					p = strchr(optarg, ':');
@@ -117,7 +98,7 @@ int main(int argc, char **argv)
 
 					if (!is_warn_v_valid(high_warn_v) && 
 						!is_warn_v_valid(high_warn_v) ){
-						print("%s", usage);
+						printf("%s", usage);
 						return 0;
 					
 					}
@@ -125,7 +106,7 @@ int main(int argc, char **argv)
 					cmd |= 1 << SET_WARN_CMD;
 					break;
 				default:
-					print("%s", usage);
+					printf("%s", usage);
 					return 0;
 					
 								
@@ -143,71 +124,128 @@ int main(int argc, char **argv)
 	UA_Client *client = UA_Client_new(config);
 	UA_StatusCode retval;
 
-	if (isCMD(SET_IP) || isCMD(SET_PORT) || isCMD(END_SERVER_CMD)){
-		retval = UA_Client_connect(client, uri);
-		if(retval == UA_STATUSCODE_GOOD) {
+	if ((isCMD(SET_SERVER)) || isCMD(KILL_SERVER_CMD)){
+		if (is_already_running(LOCK_FILE) > 0){
+			retval = UA_Client_connect(client, uri);
+				if(retval == UA_STATUSCODE_GOOD) {
 			UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STRING(1, "EndServer"), 0, NULL, NULL, NULL );
-			sleep(1);
+			}
 		}
-		if ((isCMD(SET_IP) || isCMD(SET_PORT)) && !(isCMD(END_SERVER_CMD))){
-			start_opc_server(ip, port);
-			sleep(1);
+		if (!isCMD(KILL_SERVER_CMD)){
+			start_server(ip);
 		}
-		
+
+		if (isCMD(KILL_SERVER_CMD))
+			return 0;
 	}
 	
-	if (isCMD(REDRAW_CMD) && !(isCMD(END_SERVER_CMD))){
+	if (isCMD(REDRAW_CMD) && !(isCMD(KILL_SERVER_CMD))){
 		retval = UA_Client_connect(client, uri);
 		if(retval != UA_STATUSCODE_GOOD) {
-			start_opc_server(ip, port);
-			sleep(3);
-			int i = 0;
-			for ( i = 0; i < 3; i++){
+			if (!is_already_running(LOCK_FILE)){
+				start_server(ip);
 				retval = UA_Client_connect(client, uri);
-				if(retval == UA_STATUSCODE_GOOD) {
-					break;
+				if(retval != UA_STATUSCODE_GOOD) {
+					printf("Can't connect to the ocp_server\n");
+					return 0;
 				}
-				sleep(3);
-			}
-			
-			if(retval != UA_STATUSCODE_GOOD) {
-				return 0;
 			}
 		}
 		
 		UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STRING(1, "ReDraw"), 0, NULL, NULL, NULL );
+		UA_Client_disconnect(client);
 	}
 	
-	if (isCMD(UPDATA_CMD) && !(isCMD(END_SERVER_CMD))){
+	if (isCMD(SET_WARN_CMD) && !(isCMD(KILL_SERVER_CMD))){
 		retval = UA_Client_connect(client, uri);
 		if(retval != UA_STATUSCODE_GOOD) {
-			start_opc_server(ip, port);
-			sleep(3);
-			int i = 0;
-			for ( i = 0; i < 3; i++){
+			if (!is_already_running(LOCK_FILE)){
+				start_server(ip);
 				retval = UA_Client_connect(client, uri);
-				if(retval == UA_STATUSCODE_GOOD) {
-					break;
+				if(retval != UA_STATUSCODE_GOOD) {
+					printf("Can't connect to the ocp_server\n");
+					return 0;
 				}
-				sleep(3);
 			}
-			
-			if(retval != UA_STATUSCODE_GOOD) {
-				return 0;
-			}
-
 		}
 		
 		UA_Variant *myVariant = UA_Variant_new();
-		UA_Variant_setScalarCopy(myVariant, &data, &UA_TYPES[UA_TYPES_INT32]);
+		unsigned int warn_value = (high_warn_v & 0xffff) << 16 | (low_warn_v & 0xffff);
+		UA_Variant_setScalarCopy(myVariant, &warn_value, &UA_TYPES[UA_TYPES_INT32]);
 		UA_Client_writeValueAttribute(client,
-				UA_NODEID_STRING(1, "latency"), myVariant);
+				UA_NODEID_STRING(1, "warn_value"), myVariant);
 
 		UA_Client_disconnect(client);
-		UA_Client_delete(client);
 
 	}
-	return 0;
+	
+	if (isCMD(SET_HEATING_CMD) && !(isCMD(KILL_SERVER_CMD))){
+		retval = UA_Client_connect(client, uri);
+		if(retval != UA_STATUSCODE_GOOD) {
+			if (!is_already_running(LOCK_FILE)){
+				start_server(ip);
+				retval = UA_Client_connect(client, uri);
+				if(retval != UA_STATUSCODE_GOOD) {
+					printf("Can't connect to the ocp_server\n");
+					return 0;
+				}
+			}
+		}
+		
+		UA_Variant *myVariant = UA_Variant_new();
+		UA_Variant_setScalarCopy(myVariant, (unsigned int *)(&heating), &UA_TYPES[UA_TYPES_INT32]);
+		UA_Client_writeValueAttribute(client,
+				UA_NODEID_STRING(1, "heating_score"), myVariant);
+
+		UA_Client_disconnect(client);
+
+	}
+	
+	if (isCMD(SET_COOLING_CMD) && !(isCMD(KILL_SERVER_CMD))){
+		retval = UA_Client_connect(client, uri);
+		if(retval != UA_STATUSCODE_GOOD) {
+			if (!is_already_running(LOCK_FILE)){
+				start_server(ip);
+				retval = UA_Client_connect(client, uri);
+				if(retval != UA_STATUSCODE_GOOD) {
+					printf("Can't connect to the ocp_server\n");
+					return 0;
+				}
+			}
+		}
+		
+		UA_Variant *myVariant = UA_Variant_new();
+		UA_Variant_setScalarCopy(myVariant, (unsigned int *)(&cooling), &UA_TYPES[UA_TYPES_INT32]);
+		UA_Client_writeValueAttribute(client,
+				UA_NODEID_STRING(1, "cooling_score"), myVariant);
+
+
+		UA_Client_disconnect(client);
+	}
+	
+	if (isCMD(GET_TEMPERATURE_CMD) && !(isCMD(KILL_SERVER_CMD))){
+		retval = UA_Client_connect(client, uri);
+		if(retval != UA_STATUSCODE_GOOD) {
+			if (!is_already_running(LOCK_FILE)){
+				start_server(ip);
+				retval = UA_Client_connect(client, uri);
+				if(retval != UA_STATUSCODE_GOOD) {
+					printf("Can't connect to the ocp_server\n");
+					return 0;
+				}
+			}
+		}
+		
+		UA_Variant *myVariant = UA_Variant_new();
+		retval = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1,"temperature"), myVariant);
+		UA_Variant_setScalarCopy(myVariant, (unsigned int *)(&cooling), &UA_TYPES[UA_TYPES_INT32]);
+		temp = *(UA_Int32*)myVariant->data;
+
+		UA_Client_disconnect(client);
+		printf("%d", temp);
+	}
+	UA_Client_delete(client);
+	return temp;
 
 }
 

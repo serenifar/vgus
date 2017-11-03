@@ -1,7 +1,7 @@
 CC = gcc 
-SRC = opc_client_updata.c opc_server.c vgus_controller.c 
-ALL: latency
-FLAGS =	-static -lopen62541
+SRC = main.c  server.c vgus.c opc_server.c  usr-410s.c modbus_485.c
+ALL: temperature
+FLAGS =	-static -lopen62541 -lpthread -g
 
-latency: $(SRC)
+temperature: $(SRC)
 	$(CC) -Wall -o  $@ ${SRC} ${FLAGS}
