@@ -85,7 +85,7 @@ set_warn_value(void *handle, const UA_NodeId nodeId,
 	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "warn_value");
 	UA_Server_readValue(server, tempNodeId, &value);
 	warn = *(UA_Int32 *)(value.data);
-	modbus_update_warn_vaules(opc_info_232, warn >> 16, warn | 0xffff);
+	modbus_update_warn_vaules(opc_info_232, warn >> 16, warn & 0xffff);
 }
 
 
@@ -95,16 +95,16 @@ addSetWarnCallback(UA_Server *server)
 	/*1. Define the node attributes */
 	UA_VariableAttributes attr;
 	UA_VariableAttributes_init(&attr);
-	attr.displayName = UA_LOCALIZEDTEXT("en_US", "warn_vaule");
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "warn_value");
 	UA_Int32 warn = (75 << 16) + 25;
 	UA_Variant_setScalar(&attr.value, &warn, &UA_TYPES[UA_TYPES_INT32]);
 	
 	/*2. Define where the node shall be added with which browsename*/
-	UA_NodeId newNodeId = UA_NODEID_STRING(1, "warn_vaule");
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "warn_value");
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
 	UA_NodeId variableType = UA_NODEID_NULL;
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "warn_vaule");
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "warn_value");
 
 	/*3. Add the node*/
 	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
@@ -173,7 +173,6 @@ set_cooling_score(void *handle, const UA_NodeId nodeId,
 	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "cooling_score");
 	UA_Server_readValue(server, tempNodeId, &value);
 	score = *(UA_Int32 *)(value.data);
-	printf("%d\n",score);
 	modbus_update_cooling_score(score);
 }
 

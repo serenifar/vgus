@@ -252,6 +252,11 @@ int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int
 {
 	char buf[64];
 	int len = 0;
+	struct realtime_curve *curve = &(t_screen->curve); 
+	
+	if (max > curve->y_max || min < curve->y_min){
+		return -1;
+	}
 	unsigned short dat = (unsigned short)(max & 0xffff);
 	len = write_var(buf, t_screen->warn_max.variable_addr, dat);
 	copy_to_buf(info, buf, len);
@@ -283,6 +288,7 @@ int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int
 //	set_var_len(buf, (len - 3));
 //	set_graph_num(buf, i);
 //	copy_to_buf(info, buf, len);
+	
 	return 0;	
 }
 

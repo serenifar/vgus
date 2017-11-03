@@ -27,7 +27,7 @@ static unsigned short  ModBusCRC (unsigned char *ptr, int size)
 				if (tmp)
 					CRC16=CRC16 ^ 0xa001;
 			}  
-	//		*ptr++; 
+			*ptr++; 
 	}  
 	V = ((CRC16 & 0x00FF) << 8) | ((CRC16 & 0xFF00) >> 8); 
 	return V;   
@@ -171,26 +171,25 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 
 void modbus_update_warn_vaules(struct send_info *info_232, unsigned int max, unsigned int min)
 {
-	if (max)
+	if (!max)
 		max = modbus_info.warn_max;
-	if (min) 
+	if (!min) 
 		min = modbus_info.warn_min;
-
 	if (modbus_info.warn_max != max || modbus_info.warn_min != min){
 		if(temperature_draw_warn(info_232, max, min) < 0)
 			return;
 		modbus_info.warn_max = max;
 		modbus_info.warn_min = min;
+		send_data(info_232);
 	}
-	
 }
 
 void modbus_update_heating_score(unsigned int score)
 {
-	modbus_info.heating_score = score ? HEATING_SCORE_MAX : score < HEATING_SCORE_MAX;
+	modbus_info.heating_score = score < HEATING_SCORE_MAX ? score : HEATING_SCORE_MAX;
 }
 
 void modbus_update_cooling_score(unsigned int score)
 {
-	modbus_info.cooling_score = score ? COOLING_SCORE_MAX : score < COOLING_SCORE_MAX;
+	modbus_info.cooling_score = score < COOLING_SCORE_MAX ? score : COOLING_SCORE_MAX;
 }
