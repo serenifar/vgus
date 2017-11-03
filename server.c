@@ -253,6 +253,57 @@ void *start_send_data(void *arg)
 	pthread_exit((void *)0);
 }
 
+void *start_user_interface(void *arg)
+{
+	struct send_info *info_232 = arg;
+	int fd; 
+	unsigned int temp = 0;
+	char buf[16];
+	if ((fd = access(FIFO_FILE_USER, F_OK)) < 0){
+		fd = mkfifo(FIFO_FILE_USER, 0666);
+		if (fd < 0)
+			return (void *)(0);
+	}
+	if ((fd = access(FIFO_FILE_USER_R, F_OK)) < 0){
+		fd = mkfifo(FIFO_FILE_USER_R, 0666);
+		if (fd < 0)
+			return (void *)(0);
+	}
+	while (*running){
+		if ((fd = open(FIFO_FILE_USER, O_RDONLY)) < 0){
+			return (void *)(0);
+		}
+		read(fd, buf, 16);
+		close(fd);
+		switch(buf[0]){
+			case 'g':
+				temp = modbus_get_temperature();
+				sprintf(buf, "%u",temp);
+				if ((fd = open(FIFO_FILE_USER_R, O_RDWR)) < 0){
+					return (void *)(0);
+				}
+				write(fd, buf, sizeof(buf));
+				close(fd);
+				break;
+			case 'c':
+				temp = atoi(buf + 1);
+				modbus_update_cooling_score(temp);
+				break;
+			case 'h':
+				temp = atoi(buf + 1);
+				modbus_update_heating_score(temp);
+				break;
+			case 'w':
+				temp = atoi(buf + 1);
+				modbus_update_warn_vaules(info_232, temp >> 16, temp & 0xffff);
+				break;
+			case 'k':
+				return (void *)0;
+
+		}
+	}
+	return (void *)0;	
+}
 int start_server(char *ip)
 {
 	if (is_already_running(LOCK_FILE))
@@ -267,6 +318,9 @@ int start_server(char *ip)
 	}
 
 	pthread_t p_xeno, p_touch, p_send;
+#ifdef HAVE_OPC_SERVER
+	pthread_t p_user;
+#endif
 	int retval;
 	struct send_info *info_485 = open_port(ip, "26");
 	if (!info_485){
@@ -311,8 +365,17 @@ int start_server(char *ip)
 		fprintf(stderr,"Error - pthread_create() return code: %d\n",retval);
 		return -7;
 	}
-	
+#ifdef HAVE_OPC_SERVER	
+	retval = pthread_create(&p_user, NULL, start_user_interface, (void *)info_232);
+	if (retval){
+		fprintf(stderr,"Error - pthread_create() return code: %d\n",retval);
+		return -7;
+	}
 	start_opc_server(info_485, info_232);
+	kill(p_user, SIGKILL);
+#else
+	start_user_interface((void *)info_232);
+#endif
 	kill(p_touch, SIGKILL);
 	kill(p_xeno, SIGKILL);
 	kill(p_send, SIGKILL);

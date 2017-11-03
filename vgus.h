@@ -183,6 +183,8 @@ struct xenomai_screen
 
 #define mdelay() usleep(15*1000)
 #define FIFO_FILE "/tmp/latency"
+#define FIFO_FILE_USER "/tmp/temperature"
+#define FIFO_FILE_USER_R "/tmp/temperature_get"
 #define LOCK_FILE "/tmp/vgus.pid"
 #define LOCK_MODE (S_IRUSR | S_IWUSR| S_IRGRP | S_IROTH)
 
