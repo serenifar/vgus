@@ -227,10 +227,10 @@ void *start_touch(void *arg)
 		ret = get_touch_instructions(info);
 		if (ret < 0 && touch.screen_id == x_screen->screen_id){ // we are in xenomai and silde to lift 
 			switch_screen(info, t_screen->screen_id);
-			unblock_opc_client();
+//			unblock_opc_client();
 		}
 		else if (ret > 0 && is_in_temperature == t_screen->screen_id){
-			block_opc_client();
+//			block_opc_client();
 			switch_screen(info, x_screen->screen_id);
 		}
 		else 

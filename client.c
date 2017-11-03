@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 				";
 
 	if (argc > 1){
-		while ((ch = getopt(argc, argv, "u:i:p:kgrw:h:c:")) != -1){
+		while ((ch = getopt(argc, argv, "u:i:p:kgrw:h:c:")) != (char)(-1)){
 			switch(ch){
 				case 'u':
 					uri = strdup(optarg);
