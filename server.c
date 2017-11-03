@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "vgus.h"
 #include "usr-410s.h"
@@ -30,14 +31,39 @@ int lock_file(int fd)
 	return (fcntl(fd, F_SETLK, &fl));
 }
 
+pid_t lock_test(int fd, int type, off_t offset, int whence, off_t len)
+{
+	struct flock lock;
+      	lock.l_len = len;
+	lock.l_start = offset;
+  	lock.l_type = type;	
+	lock.l_whence = whence;
+
+	if (fcntl(fd, F_GETLK, &lock) < 0)
+		return -1;
+	if (lock.l_type == F_UNLCK)
+		return 0;
+	return lock.l_pid;
+}
+  
 int is_already_running(char *lockfile)
 {
-	return open(lockfile, O_RDWR | O_CREAT, LOCK_MODE );
+	int fd = open(lockfile, O_RDWR | O_CREAT, LOCK_MODE );
+	pid_t pid;
+	if (fd < 0)
+		return -1;
+	pid = lock_test(fd, F_WRLCK, 0, SEEK_SET, 0);
+	close(fd);
+	if (pid > 0){
+		return 1;
+	}
+	return 0;
 }
 
-int lock_running(int fd)
+int lock_running(char *lockfile)
 {
 	char buf[16];
+	int fd = open(lockfile, O_RDWR | O_CREAT, LOCK_MODE );
 	if (lock_file(fd) < 0){
 		close(fd);
 		return 1;
@@ -61,12 +87,11 @@ void *start_xenomai(void *arg)
 	}
 
 	char buf[16];
-	int num;
 	while (*running){
 		if ((fd = open(FIFO_FILE, O_RDONLY)) < 0){
 			return (void *)(0);
 		}
-		num = read(fd, buf, 16);
+		read(fd, buf, 16);
 		close(fd);
 
 		if (strncmp("exit", buf, 4) == 0)
@@ -104,7 +129,6 @@ int get_touch_instructions(struct send_info *info)
 {
 	char rbuf[16] = {0};
 	int i;
-	int rlen = 0;
 	int try = 50;  //wait 1s
 	int skfd = info->header->info_header->skfd;
 	unsigned int coord;
@@ -113,7 +137,7 @@ int get_touch_instructions(struct send_info *info)
 	unsigned int variance = 0;
 	memset(&touch, 0 , sizeof(touch));
 	while (1){
-		rlen = recv(skfd, rbuf, 16, 0);
+		recv(skfd, rbuf, 16, 0);
 		if (strncmp(rbuf, "press0", 6) == 0){
 			touch.screen_id = t_screen->screen_id;
 		}
@@ -231,15 +255,14 @@ void *start_send_data(void *arg)
 
 int start_server(char *ip)
 {
-	int fd;
-	if ((fd = is_already_running(LOCK_FILE)) < 0)
+	if (is_already_running(LOCK_FILE))
 		return 0;
 	
-//	if (daemon(0, 1) < 0){
-//		return -1;
-///	}
+	if (daemon(0, 1) < 0){
+		return 0;
+	}
 	
-	if (lock_running(fd) < 0){
+	if (lock_running(LOCK_FILE) < 0){
 		return -1;
 	}
 
@@ -290,16 +313,20 @@ int start_server(char *ip)
 	}
 	
 	start_opc_server(info_485, info_232);
-	
-	pthread_join(p_touch, NULL);	
-	pthread_join(p_xeno, NULL);	
-	pthread_join(p_send, NULL);	
+	kill(p_touch, SIGKILL);
+	kill(p_xeno, SIGKILL);
+	kill(p_send, SIGKILL);
 
 	return 0;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-	start_server("10.193.20.217");
+	if(argc < 2){
+		printf("temp_server <ip>\n");
+		return 0;
+	}
+	char *ip = strndup(argv[1], sizeof("255.255.255.255"));
+	start_server(ip);
 	return 0;
 }

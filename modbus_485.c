@@ -27,7 +27,7 @@ static unsigned short  ModBusCRC (unsigned char *ptr, int size)
 				if (tmp)
 					CRC16=CRC16 ^ 0xa001;
 			}  
-			*ptr++; 
+	//		*ptr++; 
 	}  
 	V = ((CRC16 & 0x00FF) << 8) | ((CRC16 & 0xFF00) >> 8); 
 	return V;   
@@ -115,7 +115,7 @@ int set_relay(struct send_info *info_485)
 	
 	relay_buf[8] = crc >> 8;
 	relay_buf[9] = crc & 0xff;
-	copy_to_buf(info_485, relay_buf, sizeof(relay_buf));
+	copy_to_buf(info_485, (char*)relay_buf, sizeof(relay_buf));
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
 
        	if(len < 0){

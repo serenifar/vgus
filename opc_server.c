@@ -173,6 +173,7 @@ set_cooling_score(void *handle, const UA_NodeId nodeId,
 	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "cooling_score");
 	UA_Server_readValue(server, tempNodeId, &value);
 	score = *(UA_Int32 *)(value.data);
+	printf("%d\n",score);
 	modbus_update_cooling_score(score);
 }
 
@@ -268,6 +269,7 @@ int start_opc_server(struct send_info *info_458, struct send_info *info_232)
 	
 	config.networkLayers = &nl;
 	config.networkLayersSize = 1;
+	config.logger = NULL;
 	UA_Server *server = UA_Server_new(config);
 
 
@@ -276,7 +278,7 @@ int start_opc_server(struct send_info *info_458, struct send_info *info_232)
 	addGetTemperatureCallback(server);
 	addSetWarnCallback(server);
 	addSetCoolingCallback(server);
-	addSetCoolingCallback(server);
+	addSetHeatingCallback(server);
 
 	UA_StatusCode retval = UA_Server_run(server, &opc_running);
 	UA_Server_delete(server);

@@ -127,7 +127,7 @@ static void set_axis(struct send_info *info, struct axis_frame *axis)
 	write_wire_header(buf, axis->variable_addr);
 	unsigned short x0 = curve->apex[0], y0 = curve->apex[1], 
 		 length = curve->length, width = curve->width,
-		 x1 = x0 + length, y1 = y0,
+		 x1 = x0 + length,
 		 x2 = x0, y2 = y0 + width,
 		 x3 = x1, y3 = y2;
 	/**
@@ -185,15 +185,15 @@ static void up_vernier(struct vernier *vernier, unsigned short n)
 	vernier->vernier += n;
 }
 
-static int set_curve_values(struct send_info *info, unsigned short *buffer, int len, int channel)
-{
-	char buf[255] = {0};
-	int length  = 250 ? len : len > 250;
-	write_curve_values(buf, length, channel, buffer);
-	copy_to_buf(info, buf, (length * 2 + 5));
-	return length;
+//static int set_curve_values(struct send_info *info, unsigned short *buffer, int len, int channel)
+//{
+//	char buf[255] = {0};
+//	int length  = 250 ? len : len > 250;
+//	write_curve_values(buf, length, channel, buffer);
+//	copy_to_buf(info, buf, (length * 2 + 5));
+//	return length;
 
-}
+//}
 
 static int set_curve_value(struct send_info *info, unsigned short data, int channel)
 {
