@@ -26,14 +26,6 @@ struct curve_frame
 	unsigned short width_valid;
 };
 
-struct axis_frame
-{
-	unsigned short describe_addr;
-	unsigned short variable_addr;
-	struct curve_frame *curve_frame;
-	unsigned short color;
-};
-
 struct grid_frame
 {
 	unsigned short describe_addr;
@@ -43,6 +35,16 @@ struct grid_frame
 	struct curve_frame *curve_frame;
 	unsigned short color;
 };
+
+struct axis_frame
+{
+	unsigned short describe_addr;
+	unsigned short variable_addr;
+	struct curve_frame *curve_frame;
+	struct grid_frame *grid;
+	unsigned short color;
+};
+
 
 struct warn_frame
 {

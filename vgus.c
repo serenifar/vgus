@@ -136,13 +136,15 @@ static void set_axis(struct send_info *info, struct axis_frame *axis)
 	 *
 	 *  (x2, y2)    (x3, y3)
 	 */
-
+	
+	y0 -= axis->grid->interval / 2;
 
 	write_pixel_pair_n(buf, x2, y2, x0, y0, color, i++);
 	write_pixel_pair_n(buf, x2 + 1, y2, x0 + 1, y0, color, i++);
 
 	write_pixel_pair_n(buf, x2, y2, x3, y3, color, i++);
 	write_pixel_pair_n(buf, x2, y2 + 1, x3, y3 + 1, color, i++);
+
 	write_pixel_pair_n(buf, x0, y0, x0 - 10, y0 + 10, color, i++);
 	write_pixel_pair_n(buf, x0, y0, x0 - 9, y0 + 10, color, i++);
 	write_pixel_pair_n(buf, x0 + 1, y0, x0 + 10, y0 + 10, color, i++);
@@ -418,9 +420,9 @@ int temperature_screen_init()
 	}
 	
 	temperature_curve_frame.length = 700;
-	temperature_curve_frame.width = 265;
+	temperature_curve_frame.width = 240;
 	temperature_curve_frame.apex[0] = 55;
-	temperature_curve_frame.apex[1] = 175;
+	temperature_curve_frame.apex[1] = 200;
 	temperature_curve_frame.width_valid = 240;
 
 	t_screen->temp.describe_addr = 0x1400;
@@ -471,6 +473,7 @@ int temperature_screen_init()
 	t_screen->axis.variable_addr = 0x53e0;
 	t_screen->axis.curve_frame = &temperature_curve_frame;
 	t_screen->axis.color = 0x4008;
+	t_screen->axis.grid = &t_screen->grid;
 
 	t_screen->touch_warn.variable_addr = 0x5520;
 	t_screen->screen_id = 0x01;
@@ -520,6 +523,7 @@ int xenomai_screen_init(){
 	x_screen->x_axis.interval = 250;
         x_screen->x_axis.variable_addr = 0x4020;
 	x_screen->x_axis.interval_addr = 0x20;
+	x_screen->axis.grid = &x_screen->grid;
 
 	x_screen->y_axis.number = 11;
 	x_screen->y_axis.init = 350;
