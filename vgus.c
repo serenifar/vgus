@@ -325,7 +325,14 @@ void switch_screen(struct send_info *info,  unsigned short screen_id)
 	len = write_regs_short(buf, 0x03, screen_id);
 	copy_to_buf(info, buf, len);
 }
-
+void set_breath_led(struct send_info *info, int breach_led)
+{
+	char buf[16];
+	int len;
+	unsigned short v = breach_led;
+	len = write_var(buf, t_screen->breach_led.variable_addr, v);
+	copy_to_buf(info, buf, len);
+}
 void set_warn_icon(struct send_info *info, int red)
 {
 	char buf[16];
@@ -435,6 +442,8 @@ int temperature_screen_init()
 	t_screen->grid.interval = 40;
         t_screen->grid.curve_frame = &temperature_curve_frame;
 	t_screen->grid.color = 0xFC00;
+
+	t_screen->breach_led.variable_addr = 0x5510;
 
 	t_screen->x_axis.number = 7;
 	t_screen->x_axis.init = 20;

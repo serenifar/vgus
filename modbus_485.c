@@ -137,7 +137,9 @@ unsigned int modbus_get_temperature()
 int interval_time = 5;
 int interval_value = 0;
 int red = 1;
+int breath_led = 1;
 int extremity = 0;
+int start_warn = 0;
 int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 {
 	int tem;
@@ -152,10 +154,22 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 		tem = modbus_info.temperature;
 		temperature_update_curve(info_232, (unsigned int)tem);
 		interval_value = 0;
+
 		if((unsigned int )tem > modbus_info.warn_max || (unsigned int)tem < modbus_info.warn_min){
 			set_warn_icon(info_232, red &0x01);
 			red  = red > 0 ? 0 : 1;	
+			start_warn = 1;
 		}
+		else{
+			if (start_warn == 1){
+				set_warn_icon(info_232, 0);
+				start_warn = 0;
+			}
+		}
+
+		set_breath_led(info_232, breath_led & 0x01);
+		breath_led = breath_led > 0 ? 0 : 1;
+
 
 		if ((unsigned int)tem >= modbus_info.extremity){
 			modbus_info.cooling_score = COOLING_SCORE_MAX;

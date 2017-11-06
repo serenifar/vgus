@@ -78,6 +78,10 @@ struct axis_values
 	unsigned short interval_addr;
 };
 
+struct breach_led
+{
+	unsigned short variable_addr;		
+};
 struct temperature_screen
 {
 	struct numerical_variable temp;
@@ -85,6 +89,7 @@ struct temperature_screen
 	struct numerical_variable warn_min;
 	struct icon_variable warn_icon;
 	struct realtime_curve curve;
+	struct breach_led breach_led;
 	struct warn_frame warn;
 	struct grid_frame grid;
 	struct axis_values x_axis;
