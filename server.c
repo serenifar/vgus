@@ -270,20 +270,30 @@ void *start_user_interface(void *arg)
 			return (void *)(0);
 	}
 	while (*running){
+		printf("server: before open_read\n");
 		if ((fd = open(FIFO_FILE_USER, O_RDONLY)) < 0){
 			return (void *)(0);
 		}
+		printf("server: before read\n");
 		read(fd, buf, 16);
+		printf("read %s len = %d\n", buf, strlen(buf));
+		printf("server: before close\n");
 		close(fd);
+		printf("server: after close\n");
+		fd = 0;
 		switch(buf[0]){
 			case 'g':
 				temp = modbus_get_temperature();
 				sprintf(buf, "%u",temp);
-				if ((fd = open(FIFO_FILE_USER_R, O_RDWR)) < 0){
+				printf("server: before write_open\n");
+				if ((fd = open(FIFO_FILE_USER_R, O_WRONLY)) < 0){
 					return (void *)(0);
 				}
-				write(fd, buf, sizeof(buf));
+				printf("server: before write\n");
+				write(fd, buf, strlen(buf));
+				printf("server: before close\n");
 				close(fd);
+				printf("server: after close\n");
 				break;
 			case 'c':
 				temp = atoi(buf + 1);

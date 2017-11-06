@@ -24,22 +24,30 @@
 
 int read_pipe(char *buf, int len)
 {
-	int fd = open(FIFO_FILE_USER_R, O_RDWR);
+	printf("client: before open_read\n");
+	int fd = open(FIFO_FILE_USER_R, O_RDONLY);
 	if (fd < 0)
 		return -1;
 
+	printf("client: before read\n");
 	read(fd, buf, len);
+	printf("client: before close\n");
 	close(fd);
+	printf("client: after close\n");
 	return 0;
 }
 
 int write_pipe(char *buf)
 {
-	int fd = open(FIFO_FILE_USER, O_RDWR);
+	printf("client: before open_write\n");
+	int fd = open(FIFO_FILE_USER, O_WRONLY);
 	if (fd < 0)
 		return -1;
+	printf("client: before write\n");
 	write(fd, buf, strlen(buf) + 1);
+	printf("client: before close\n");
 	close(fd);
+	printf("client: after close\n");
 	return 0;
 }
 
