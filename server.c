@@ -320,8 +320,10 @@ void *start_user_interface(void *arg)
 }
 int start_server(char *ip)
 {
-	if (is_already_running(LOCK_FILE))
+	if (is_already_running(LOCK_FILE)){
+		printf("the server is already running\n");
 		return 0;
+	}
 	
 	if (daemon(0, 1) < 0){
 		return 0;
@@ -338,11 +340,13 @@ int start_server(char *ip)
 	int retval;
 	struct send_info *info_485 = open_port(ip, "26");
 	if (!info_485){
+		printf("open modbus port fail\n");
 		return -2;
 	}
 	
 	struct send_info *info_232 = open_port(ip, "23");
 	if (!info_232){
+		printf("open vgus screen port fail\n");
 		return -3;
 	}
 	
