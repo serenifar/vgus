@@ -43,11 +43,13 @@ struct modbus_info
 	unsigned int warn_min;
 	unsigned int heating_score;
 	unsigned int cooling_score;
+	unsigned int heating_save;
+	unsigned int cooling_save;
 	unsigned int extremity;
 
 };
 
-struct modbus_info modbus_info = {240, 750, 230, 0, 0, 800};
+struct modbus_info modbus_info = {240, 750, 230, 0, 0, 0, 0,800};
 
 static int get_temperature(struct send_info *info_485)
 {
@@ -196,6 +198,20 @@ void modbus_update_warn_vaules(struct send_info *info_232, unsigned int max, uns
 		modbus_info.warn_min = min;
 		send_data(info_232);
 	}
+}
+
+void modbus_safe_mode()
+{
+	modbus_info.heating_save = modbus_info.heating_score;
+	modbus_info.cooling_save = modbus_info.cooling_score;	
+	modbus_info.cooling_score = 0;
+	modbus_info.heating_score =0;
+}
+
+void modbus_recover_from_safe()
+{
+	modbus_info.cooling_score = modbus_info.cooling_save;
+	modbus_info.heating_score = modbus_info.heating_save;
 }
 
 void modbus_update_heating_score(unsigned int score)

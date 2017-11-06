@@ -119,7 +119,9 @@ pthread_mutex_t blocking_lock;
 #define unblock_client() blocking = 0; pthread_mutex_unlock(&blocking_lock)
 
 #define block_me()  do { if (blocking) {\
+					modbus_safe_mode(); \
 					pthread_mutex_lock(&blocking_lock);\
+					modbus_recover_from_safe();\
 					pthread_mutex_unlock(&blocking_lock);\
 			      }} while(0)
 
