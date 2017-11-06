@@ -193,6 +193,7 @@ struct xenomai_screen
 #define LOCK_FILE "/tmp/vgus.pid"
 #define LOCK_MODE (S_IRUSR | S_IWUSR| S_IRGRP | S_IROTH)
 
+void set_breath_led(struct send_info *info, int breach_led);
 void update_curve(struct send_info *info, int data);
 void curve_clear_data(struct send_info *info, struct realtime_curve *curve); // ch = 0 : all ch; 
 void xenomai_update_curve(struct send_info *info, unsigned int data);
