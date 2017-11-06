@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "open62541.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -10,7 +9,6 @@
 #include "usr-410s.h"
 #include "client.h"
 #include "server.h"
-
 
 #define isCMD(c)  (cmd & (1 << c))
 
@@ -21,6 +19,11 @@
 #define set_warn_v_valid(v)  ((v) |= 0xffff0000)
 #define is_warn_v_valid(v)   (((v) & 0xFFFF0000) == 0xFFFF0000)
 #define get_warn_v(v)        ((v) & 0xFFFF)
+
+#ifdef HAVE_OPC_SERVER
+#include "opc_server.h"
+#include "open62541.h"
+#endif
 
 int read_pipe(char *buf, int len)
 {

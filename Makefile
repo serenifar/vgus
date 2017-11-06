@@ -1,8 +1,15 @@
+OPC = "true"
 CC = gcc 
-SRC = server.c vgus.c opc_server.c  usr-410s.c modbus_485.c
+SRC = server.c vgus.c usr-410s.c modbus_485.c
 CLIENT = client.c
 ALL: temp_server temperature
-FLAGS =	-static -lopen62541 -lpthread -g -DHAVE_OPC_SERVER
+FLAGS =	-static -lpthread -g 
+ifeq ($(OPC),"true")
+FLAGS += -lopen62541 -DHAVE_OPC_SERVER
+SRC += opc_server.c
+endif
+
+
 
 temp_server: $(SRC)
 	$(CC) -Wall -o  $@ ${SRC} ${FLAGS}
@@ -10,3 +17,5 @@ temp_server: $(SRC)
 temperature: $(CLIENT)
 	$(CC) -Wall -o  $@ ${CLIENT} ${FLAGS}
 
+clean:
+	rm temperature temp_server

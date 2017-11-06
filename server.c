@@ -16,10 +16,17 @@
 
 #include "vgus.h"
 #include "usr-410s.h"
-#include "opc_server.h"
 #include "modbus_485.h"
 
 #define pr() printf("%s %s %d\n", __FILE__, __func__, __LINE__)
+
+#ifdef HAVE_OPC_SERVER 
+#include "opc_server.h"
+#else
+	unsigned char run = 1;
+	unsigned char *running = &run;
+
+#endif
 
 int lock_file(int fd)
 {
@@ -376,6 +383,7 @@ int start_server(char *ip)
 	kill(p_user, SIGKILL);
 #else
 	start_user_interface((void *)info_232);
+	run = 0;
 #endif
 	kill(p_touch, SIGKILL);
 	kill(p_xeno, SIGKILL);
