@@ -115,8 +115,13 @@ void *start_xenomai(void *arg)
 unsigned int blocking = 0;
 pthread_mutex_t blocking_lock;
 
-#define block_opc_client() pthread_mutex_lock(&blocking_lock); blocking = 1
-#define unblock_opc_client() blocking = 0; pthread_mutex_unlock(&blocking_lock)
+#define block_client()  pthread_mutex_lock(&blocking_lock); blocking = 1
+#define unblock_client() blocking = 0; pthread_mutex_unlock(&blocking_lock)
+
+#define block_me()  do { if (blocking) {\
+					pthread_mutex_lock(&blocking_lock);\
+					pthread_mutex_unlock(&blocking_lock);\
+			      }} while(0)
 
 #define COORD_SAVE_MAX 10
 struct {
@@ -234,10 +239,10 @@ void *start_touch(void *arg)
 		ret = get_touch_instructions(info);
 		if (ret < 0 && touch.screen_id == x_screen->screen_id){ // we are in xenomai and silde to lift 
 			switch_screen(info, t_screen->screen_id);
-//			unblock_opc_client();
+			unblock_client();
 		}
 		else if (ret > 0 && is_in_temperature == t_screen->screen_id){
-//			block_opc_client();
+			block_client();
 			switch_screen(info, x_screen->screen_id);
 		}
 		else 
@@ -277,6 +282,7 @@ void *start_user_interface(void *arg)
 			return (void *)(0);
 	}
 	while (*running){
+		block_me();
 		if ((fd = open(FIFO_FILE_USER, O_RDONLY)) < 0){
 			return (void *)(0);
 		}
