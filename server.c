@@ -201,25 +201,25 @@ int get_touch_instructions(struct send_info *info)
 			}
 			average_x >>= 2;
 			if (average_x > (touch.coord[touch.index].x >> 1)){
-//				printf("moving to lift\n");
-				if (touch.screen_id == x_screen->screen_id){
-					set_touch_warn(info, x_screen->touch_warn.variable_addr,
-							reversal & 0x2 ? 2 : 0);
+				//printf("moving to lift\n");
+				if (touch.screen_id == t_screen->screen_id){
+					set_touch_warn(info, t_screen->touch_warn.variable_addr,
+							reversal & 0x1 ? 1 : 0);
 				}
 				
 				touch.direction_trend--;
 			}
 			else if(average_x < (touch.coord[touch.index].x >> 1)){
-				if (touch.screen_id == t_screen->screen_id){
-					set_touch_warn(info, t_screen->touch_warn.variable_addr,
-							reversal & 0x2 ? 1 : 0);
+				if (touch.screen_id == x_screen->screen_id){
+					set_touch_warn(info, x_screen->touch_warn.variable_addr,
+							reversal & 0x1 ? 2 : 0);
 				}
-//				printf("moving to right\n");
+		//		printf("moving to right\n");
 				touch.direction_trend++;
 			
 			}	
 			else{
-//				printf("no moving\n");
+		//		printf("no moving\n");
 				if (touch.screen_id == t_screen->screen_id){
 					set_touch_warn(info, t_screen->touch_warn.variable_addr, 0);
 				}
@@ -259,7 +259,6 @@ void *start_touch(void *arg)
 {
 	struct send_info *info = arg;
 	int ret;
-	int is_in_temperature = 1;
 	blocking = 0;
 	pthread_mutex_init(&blocking_lock, NULL);
 	while(*running){
@@ -268,7 +267,7 @@ void *start_touch(void *arg)
 			switch_screen(info, t_screen->screen_id);
 			unblock_client();
 		}
-		else if (ret > 0 && is_in_temperature == t_screen->screen_id){
+		else if (ret > 0 && touch.screen_id == t_screen->screen_id){
 			block_client();
 			switch_screen(info, x_screen->screen_id);
 		}
