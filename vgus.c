@@ -333,6 +333,16 @@ void set_breath_led(struct send_info *info, int breach_led)
 	len = write_var(buf, t_screen->breach_led.variable_addr, v);
 	copy_to_buf(info, buf, len);
 }
+
+void set_touch_warn(struct send_info *info, unsigned short addr, unsigned short val)
+{
+	char buf[16];
+	int len;
+	len = write_var(buf, addr, val);
+	copy_to_buf(info, buf, len);
+	send_data(info);
+}
+
 void set_warn_icon(struct send_info *info, int red)
 {
 	char buf[16];
@@ -462,7 +472,9 @@ int temperature_screen_init()
 	t_screen->axis.curve_frame = &temperature_curve_frame;
 	t_screen->axis.color = 0x4008;
 
+	t_screen->touch_warn.variable_addr = 0x5520;
 	t_screen->screen_id = 0x01;
+
 	return 0;
 }
 
@@ -500,6 +512,8 @@ int xenomai_screen_init(){
 	x_screen->grid.interval = 30;
         x_screen->grid.curve_frame = &xenomai_curve_frame;
 	x_screen->grid.color = 0xFC00;
+	
+	x_screen->touch_warn.variable_addr = 0x5530;
 
 	x_screen->x_axis.number = 11;
 	x_screen->x_axis.init = 500;

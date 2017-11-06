@@ -149,6 +149,7 @@ int get_touch_instructions(struct send_info *info)
 	unsigned int average_x = 0;
 	unsigned int average_y = 0;
 	unsigned int variance = 0;
+	unsigned char reversal = 0;
 	memset(&touch, 0 , sizeof(touch));
 	while (1){
 		recv(skfd, rbuf, 16, 0);
@@ -160,12 +161,20 @@ int get_touch_instructions(struct send_info *info)
 		}
 		else
 			continue;	
+		reversal = 0;
 		break;	
 	}
 	
 	while (try--){
 		coord = get_touch_coord(info);
 		if(coord == 0xFFFFFFFF){
+			if (touch.screen_id == t_screen->screen_id){
+				set_touch_warn(info, t_screen->touch_warn.variable_addr, 0);
+			}
+			else{
+				set_touch_warn(info, x_screen->touch_warn.variable_addr, 0);
+			}
+
 			break;
 		}
 		if (!coord){
@@ -178,6 +187,7 @@ int get_touch_instructions(struct send_info *info)
 		
 		touch.len++;
 		if(touch.len > 2){
+			reversal++;
 			if (touch.index == 0){
 				average_x = touch.coord[COORD_SAVE_MAX -1].x +
 					touch.coord[COORD_SAVE_MAX - 2].x;
@@ -192,15 +202,30 @@ int get_touch_instructions(struct send_info *info)
 			average_x >>= 2;
 			if (average_x > (touch.coord[touch.index].x >> 1)){
 //				printf("moving to lift\n");
+				if (touch.screen_id == x_screen->screen_id){
+					set_touch_warn(info, x_screen->touch_warn.variable_addr,
+							reversal & 0x2 ? 2 : 0);
+				}
+				
 				touch.direction_trend--;
 			}
 			else if(average_x < (touch.coord[touch.index].x >> 1)){
+				if (touch.screen_id == t_screen->screen_id){
+					set_touch_warn(info, t_screen->touch_warn.variable_addr,
+							reversal & 0x2 ? 1 : 0);
+				}
 //				printf("moving to right\n");
 				touch.direction_trend++;
 			
 			}	
 			else{
 //				printf("no moving\n");
+				if (touch.screen_id == t_screen->screen_id){
+					set_touch_warn(info, t_screen->touch_warn.variable_addr, 0);
+				}
+				else{
+					set_touch_warn(info, x_screen->touch_warn.variable_addr, 0);
+				}
 			}
 		}
 

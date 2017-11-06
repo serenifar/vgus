@@ -82,6 +82,12 @@ struct breach_led
 {
 	unsigned short variable_addr;		
 };
+
+struct touch_warn
+{
+	unsigned short variable_addr;
+};
+
 struct temperature_screen
 {
 	struct numerical_variable temp;
@@ -95,6 +101,7 @@ struct temperature_screen
 	struct axis_values x_axis;
 	struct axis_values y_axis;
 	struct axis_frame axis;
+	struct touch_warn touch_warn;
 	unsigned short screen_id;
 };
 
@@ -115,6 +122,7 @@ struct xenomai_screen
 	struct axis_values x_axis;
 	struct axis_values y_axis;
 	struct axis_frame axis;
+	struct touch_warn touch_warn;
 	unsigned short screen_id;
 };
 
@@ -193,6 +201,7 @@ struct xenomai_screen
 #define LOCK_FILE "/tmp/vgus.pid"
 #define LOCK_MODE (S_IRUSR | S_IWUSR| S_IRGRP | S_IROTH)
 
+void set_touch_warn(struct send_info *info, unsigned short addr, unsigned short val);
 void set_breath_led(struct send_info *info, int breach_led);
 void update_curve(struct send_info *info, int data);
 void curve_clear_data(struct send_info *info, struct realtime_curve *curve); // ch = 0 : all ch; 
