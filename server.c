@@ -454,6 +454,7 @@ int start_server(char *ip)
 	run = 0;
 #endif
 	switch_screen(info_232, 0);
+	send_data(info_232);
 	kill(p_touch, SIGKILL);
 	kill(p_xeno, SIGKILL);
 	kill(p_send, SIGKILL);
