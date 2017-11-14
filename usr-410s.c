@@ -26,7 +26,7 @@ static int create_sk_cli(char *addr, char *port)
 	struct addrinfo hints;
 	struct addrinfo *res;
 	struct addrinfo *p;
-	
+	int is_first = 0;	
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
@@ -37,7 +37,7 @@ static int create_sk_cli(char *addr, char *port)
 		printf("getaddrinfo : %s\n", gai_strerror(ret));
 		return -1;
 	}
-
+try_connect:
 	for(p = res; p != NULL; p = p->ai_next){
 		skfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 		if(skfd == -1){
@@ -55,8 +55,11 @@ static int create_sk_cli(char *addr, char *port)
 	if(p == NULL){
 		if (skfd > 0)
 			close(skfd);
-		printf("Fail to connect\n");
- 		return -1;
+		if (is_first == 0)
+			printf("Fail to connect %s:%s , after 5s, i  will have a try \n", addr, port);
+		is_first = 1;
+		sleep(5);
+		goto try_connect;
 	}
 
 	freeaddrinfo(res);
@@ -200,6 +203,10 @@ int send_all_data(struct send_info *info)
 		pthread_rwlock_rdlock(&(i->rwlock));
 		for(try = 0; (try < 3 && i->len > 0); try++){
          		wlen = send(skfd, i->buf, i->len, MSG_NOSIGNAL);
+			if (wlen == -1){
+				printf("disconnect ...\n");
+				exit(0);
+			}
 	 		i->len -= wlen;
 		}
 		if (i->len){
@@ -218,6 +225,10 @@ int send_data(struct send_info *info)
 	int skfd = info->header->info_header->skfd;
 	pthread_rwlock_rdlock(&(info->rwlock));
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
+	if (wlen == -1){
+		printf("disconnect ...\n");
+		exit(0);
+	}
 	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
 	return wlen;
@@ -229,9 +240,17 @@ int send_and_recv_data(struct send_info *info, char *buf, int len)
 	int skfd = info->header->info_header->skfd;
 	pthread_rwlock_rdlock(&(info->rwlock));
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
+	if (wlen == -1){
+		printf("disconnect ...\n");
+		exit(0);
+	}
 	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
        	wlen = recv(skfd, buf, len, 0);	
+	if (wlen == 0 && errno != EINTR){
+		printf("disconnect ...\n");
+		exit(0);
+	}
 	return wlen;
 }	
 
