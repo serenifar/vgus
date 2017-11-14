@@ -13,6 +13,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
 
 #include "vgus.h"
 #include "usr-410s.h"
@@ -91,6 +92,13 @@ void *start_xenomai(void *arg)
 		fd = mkfifo(FIFO_FILE, 0666);
 		if (fd < 0)
 			return (void *)(0);
+	}
+	
+	int skfd = info->header->info_header->skfd;
+	struct timeval tv;
+	tv.tv_usec = 900000;
+	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
+		perror("setsockopt outtime error\n");
 	}
 
 	char buf[16];
@@ -259,6 +267,12 @@ void *start_touch(void *arg)
 {
 	struct send_info *info = arg;
 	int ret;
+	int skfd = info->header->info_header->skfd;
+	struct timeval tv;
+	tv.tv_usec = 900000;
+	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
+		perror("setsockopt outtime error\n");
+	}
 	blocking = 0;
 	pthread_mutex_init(&blocking_lock, NULL);
 	while(*running){
@@ -283,6 +297,17 @@ void *start_send_data(void *arg)
 	struct send_info **info = arg;
 	struct send_info *info_485 = info[0];
 	struct send_info *info_232 = info[1];
+	int skfd = info_485->header->info_header->skfd;
+	struct timeval tv;
+	tv.tv_usec = 900000;
+	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
+		perror("setsockopt outtime error\n");
+	}
+	
+	skfd = info_232->header->info_header->skfd;
+	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
+		perror("setsockopt outtime error\n");
+	}
 	while (*running){
 		modbus_callback(info_485, info_232);
 		send_data(info_232);
@@ -296,6 +321,12 @@ void *start_user_interface(void *arg)
 	struct send_info *info_232 = arg;
 	int fd; 
 	unsigned int temp = 0;
+	int skfd = info_232->header->info_header->skfd;
+	struct timeval tv;
+	tv.tv_usec = 900000;
+	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
+		perror("setsockopt outtime error\n");
+	}
 	char buf[16];
 	if ((fd = access(FIFO_FILE_USER, F_OK)) < 0){
 		fd = mkfifo(FIFO_FILE_USER, 0666);
