@@ -1,0 +1,16 @@
+[Unit]
+Description=Daemon to start vgus server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/temp_server 10.193.20.217
+ExecStop=/usr/bin/temperature -k
+ExecReload=/usr/bin/temp_server 10.193.20.217
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+ 
+

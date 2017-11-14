@@ -205,7 +205,7 @@ int send_all_data(struct send_info *info)
          		wlen = send(skfd, i->buf, i->len, MSG_NOSIGNAL);
 			if (wlen == -1){
 				printf("disconnect ...\n");
-				exit(0);
+				exit(-1);
 			}
 	 		i->len -= wlen;
 		}
@@ -227,7 +227,7 @@ int send_data(struct send_info *info)
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
 	if (wlen == -1){
 		printf("disconnect ...\n");
-		exit(0);
+		exit(-1);
 	}
 	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
@@ -242,14 +242,14 @@ int send_and_recv_data(struct send_info *info, char *buf, int len)
         wlen = send(skfd, info->buf, info->len, MSG_NOSIGNAL);
 	if (wlen == -1){
 		printf("disconnect ...\n");
-		exit(0);
+		exit(-1);
 	}
 	info->len -= wlen;
 	pthread_rwlock_unlock(&(info->rwlock));
        	wlen = recv(skfd, buf, len, 0);	
 	if (wlen == 0 && errno != EINTR){
 		printf("disconnect ...\n");
-		exit(0);
+		exit(-1);
 	}
 	return wlen;
 }	

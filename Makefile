@@ -19,3 +19,7 @@ temperature: $(CLIENT)
 
 clean:
 	rm temperature temp_server
+install:
+	cp temperature /usr/bin
+	cp temp_server /usr/bin
+	cp vgus.service /lib/systemd/system/
