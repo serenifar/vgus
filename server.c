@@ -338,6 +338,7 @@ void *start_user_interface(void *arg)
 				modbus_update_warn_vaules(info_232, temp >> 16, temp & 0xffff);
 				break;
 			case 'k':
+				*running = 0;
 				return (void *)0;
 
 		}
