@@ -142,15 +142,60 @@ int red = 1;
 int breath_led = 1;
 int extremity = 0;
 int start_warn = 0;
+int temp_sensor_failure = 0;
+
+void set_temp_sensor_breath_led(struct send_info *info_485)
+{
+	unsigned char rbuf[32];
+	char sbufopen[] = {0x00, 0x06, 0x00, 0x06,0x00, 0x01, 0xa9, 0xda};
+	char sbufclose[] = {0x00, 0x06, 0x00, 0x06,0x00, 0x00, 0x68, 0x1a};
+	unsigned int tem;
+	int len;
+	unsigned short crc;
+	if (breath_led)
+		copy_to_buf(info_485, sbufopen, sizeof(sbufopen));
+	else
+		copy_to_buf(info_485, sbufclose, sizeof(sbufclose));
+
+	len = send_and_recv_data(info_485, (char *)rbuf, 32);
+       	if (len < 2){
+		return;
+	}
+
+	 crc = ModBusCRC(rbuf, len - 2);
+	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
+	 	return;
+	 }
+	 tem = (rbuf[3] << 8) + rbuf[4];	
+	if (tem == 0)
+		tem = (rbuf[5] << 8) + rbuf[6];	
+
+	return;
+		
+} 
+
+
 int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 {
 	int tem;
-	if (interval_value < interval_time){
+	if (interval_value < interval_time - 1){
 		interval_value++;
 		set_relay(info_485);
-	}else{
+	}else if(interval_value == interval_time - 1){
+		interval_value++;
+		if (temp_sensor_failure < 5){
+			set_temp_sensor_breath_led(info_485);
+		}	
+	}
+	else{
 		if ((tem = get_temperature(info_485)) > 0){
 			modbus_info.temperature = tem;
+			temp_sensor_failure = 0;
+		}
+		else{
+			if (temp_sensor_failure < 5)
+				temp_sensor_failure++;
+			
 		}
 
 		tem = modbus_info.temperature;
