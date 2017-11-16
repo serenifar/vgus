@@ -78,6 +78,7 @@ struct axis_values
 	short interval;
 	unsigned short variable_addr;
 	unsigned short interval_addr;
+	unsigned short describe_addr;
 };
 
 struct breach_led

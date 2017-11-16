@@ -49,7 +49,7 @@ struct modbus_info
 
 };
 
-struct modbus_info modbus_info = {240, 750, 230, 0, 0, 0, 0,800};
+struct modbus_info modbus_info = {240, 750, 230, 0, 0, 0, 0,500};
 
 static int get_temperature(struct send_info *info_485)
 {
