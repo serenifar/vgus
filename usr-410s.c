@@ -262,8 +262,5 @@ struct send_info* open_port(char *ip, char *port)
 		printf("Can't create a connect to %s:%s\n", ip, port);
 		return NULL;
 	}
-	struct timeval tv;
-	tv.tv_usec = 200000;
-	setsockopt(info->skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval));
 	return info;
 }

@@ -268,12 +268,6 @@ void *start_touch(void *arg)
 {
 	struct send_info *info = arg;
 	int ret;
-	int skfd = info->header->info_header->skfd;
-	struct timeval tv;
-	tv.tv_usec = 900000;
-	if (setsockopt(skfd, SOL_SOCKET, SO_RCVTIMEO,(char *)&tv,sizeof(struct timeval)) != 0){
-		perror("setsockopt outtime error\n");
-	}
 	blocking = 0;
 	pthread_mutex_init(&blocking_lock, NULL);
 	while(*running){
@@ -403,6 +397,7 @@ int start_server(char *ip)
 	vgus_init(info_232);	
 	send_data(info_232);
 	struct send_info *info[2] = {info_485, info_232};	
+	set_temp_sensor_breath_led(info_485, 1);
 
 	retval = pthread_create(&p_send, NULL, start_send_data, (void *)info);
 	if (retval){
@@ -446,7 +441,9 @@ int start_server(char *ip)
 	run = 0;
 #endif
 	switch_screen(info_232, 0);
+	set_temp_sensor_breath_led(info_485, 0);
 	send_data(info_232);
+	send_data(info_485);
 	kill(p_touch, SIGKILL);
 	kill(p_xeno, SIGKILL);
 	kill(p_send, SIGKILL);

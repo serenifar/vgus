@@ -68,6 +68,7 @@ static int get_temperature(struct send_info *info_485)
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
+	
 	 tem = (rbuf[3] << 8) + rbuf[4];	
 	if (tem == 0)
 		tem = (rbuf[5] << 8) + rbuf[6];	
@@ -151,7 +152,7 @@ int extremity = 0;
 int start_warn = 0;
 int temp_sensor_failure = 0;
 
-void set_temp_sensor_breath_led(struct send_info *info_485)
+void set_temp_sensor_breath_led(struct send_info *info_485, int breath_led)
 {
 	unsigned char rbuf[32];
 	char sbufopen[] = {0x00, 0x06, 0x00, 0x06,0x00, 0x01, 0xa9, 0xda};
@@ -185,16 +186,16 @@ void set_temp_sensor_breath_led(struct send_info *info_485)
 int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 {
 	int tem;
-	if (interval_value < interval_time - 1){
+	if (interval_value == 1){
 		interval_value++;
 		set_relay(info_485);
-	}else if(interval_value == interval_time - 1){
+	}else if(interval_value == 3){
 		interval_value++;
-		if (temp_sensor_failure < 5){
-			set_temp_sensor_breath_led(info_485);
+		if (temp_sensor_failure > 5){
+			set_temp_sensor_breath_led(info_485, 0);
 		}	
 	}
-	else{
+	else if (interval_value == 5){
 		if ((tem = get_temperature(info_485)) > 0){
 			modbus_info.temperature = tem;
 			temp_sensor_failure = 0;
@@ -234,6 +235,10 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 			modbus_info.cooling_score = 0;
 		}
 	}
+	else{
+		interval_value++;
+	}
+
 	return 0;
 }
 
