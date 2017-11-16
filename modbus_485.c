@@ -95,11 +95,18 @@ static int get_temperature(struct send_info *info_485)
 //	return sw;
 //}
 
+//static char get_relay_value()
+//{
+//	char sw = 0;
+//	sw |= modbus_info.heating_score << 2;
+//	sw |= modbus_info.cooling_score;
+//	return sw;
+//}
 static char get_relay_value()
 {
 	char sw = 0;
-	sw |= modbus_info.heating_score << 2;
-	sw |= modbus_info.cooling_score;
+	sw |= modbus_info.heating_score > 0 ? 1 << 4  : 0;
+	sw |= modbus_info.cooling_score > 0 ? 1 << 2  : 0;
 	return sw;
 }
 unsigned char relay_buf[] = {0x02, 0x0F, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00};
