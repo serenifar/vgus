@@ -160,7 +160,19 @@ static void set_axis(struct send_info *info, struct axis_frame *axis)
 	copy_to_buf(info, buf, len);
 		
 } 
+static void reset_axis_attributes(struct send_info *info, struct axis_values *axis_v, int offset, unsigned short dat)
+{
+	char buf[255] = {0};
+	int i = 0;
 
+	for (i = 0; i < axis_v->number; i++){
+		write_var(buf + 8 * i, axis_v->describe_addr + offset + i * axis_v->interval_addr, dat);	
+	}
+
+	copy_to_buf(info, buf,  8 * axis_v->number);
+
+
+}
 static void set_axis_values(struct send_info *info, struct axis_values *axis_v)
 {
 	char buf[255] = {0};
@@ -238,12 +250,15 @@ void xenomai_update_curve(struct send_info *info, unsigned int data)
 	up_vernier(&x_screen->vernier, 1);
 	set_vernier_value(info, x_screen, data);
 } 
-
+unsigned int sec = 0;
 void temperature_update_curve(struct send_info *info, unsigned int data)
 {
 	char buf[16];
 	unsigned short dat = (unsigned short)(data & 0xffff);
-	set_curve_value(info, data, t_screen->curve.channel);
+	if (sec & 0x01){
+		set_curve_value(info, data, t_screen->curve.channel);
+	}
+	sec++;
 	int len = write_var(buf, t_screen->temp.variable_addr, dat);
 	copy_to_buf(info, buf, len);
 }
@@ -437,7 +452,7 @@ int temperature_screen_init()
 	t_screen->curve.channel = 0x02;
 	t_screen->curve.y_max = 500;
 	t_screen->curve.y_min = 200;
-	t_screen->curve.x_interval = 20;
+	t_screen->curve.x_interval = 1;
 	t_screen->curve.color = 0xF810;
 
 	t_screen->warn.variable_addr = 0x5460;
@@ -463,8 +478,8 @@ int temperature_screen_init()
 	t_screen->x_axis.describe_addr = 0x1180;
 
 	t_screen->y_axis.number = 11;
-	t_screen->y_axis.init = 350;
-	t_screen->y_axis.interval = -35;
+	t_screen->y_axis.init = 1200;
+	t_screen->y_axis.interval = -120;
         t_screen->y_axis.variable_addr = 0x5260;
 	t_screen->y_axis.interval_addr = 0x20;
 	t_screen->y_axis.describe_addr = 0x1260;
@@ -564,6 +579,7 @@ void vgus_init(struct send_info *info)
 	send_data(info);
 	set_axis_values(info, &t_screen->x_axis);
 	set_axis_values(info, &t_screen->y_axis);
+	reset_axis_attributes(info, &t_screen->y_axis, 6, 0 << 8);
 	send_data(info);
 	temperature_draw_warn(info, 450, 250);
 	switch_screen(info, t_screen->screen_id);
