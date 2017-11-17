@@ -192,7 +192,7 @@ int modbus_callback(struct send_info *info_485, struct send_info *info_232)
 	}else if(interval_value == 3){
 		interval_value++;
 		if (temp_sensor_failure > 5){
-			set_temp_sensor_breath_led(info_485, 0);
+		//	set_temp_sensor_breath_led(info_485, 0);
 		}	
 	}
 	else if (interval_value == 5){
