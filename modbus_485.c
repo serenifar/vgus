@@ -68,7 +68,11 @@ static int get_temperature(struct send_info *info_485)
 	 if (crc != ((rbuf[len - 2] << 8) + rbuf[len - 1])){
 	 	return -1;
 	 }
-	
+	 
+	if (rbuf[0] != 0x01 || rbuf[1] != 0x03 || rbuf[2] != 0x04)
+		return -1;
+
+
 	 tem = (rbuf[3] << 8) + rbuf[4];	
 	if (tem == 0)
 		tem = (rbuf[5] << 8) + rbuf[6];	
