@@ -49,7 +49,7 @@ struct modbus_info
 
 };
 
-struct modbus_info modbus_info = {240, 750, 230, 0, 0, 0, 0,500};
+struct modbus_info modbus_info = {0, 750, 230, 0, 0, 0, 0,500};
 
 static int get_temperature(struct send_info *info_485)
 {
@@ -141,6 +141,10 @@ int set_relay(struct send_info *info_485)
 
 unsigned int modbus_get_temperature()
 {
+	while (modbus_info.temperature == 0){
+		sleep(1);
+	}
+
 	return modbus_info.temperature;
 }
 
