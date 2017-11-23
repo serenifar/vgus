@@ -96,6 +96,8 @@ struct temperature_screen
 	struct numerical_variable temp;
 	struct numerical_variable warn_max;
 	struct numerical_variable warn_min;
+	struct numerical_variable target;
+	struct numerical_variable offset;
 	struct icon_variable warn_icon;
 	struct realtime_curve curve;
 	struct breach_led breach_led;

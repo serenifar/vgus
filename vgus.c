@@ -278,6 +278,12 @@ int temperature_draw_warn(struct send_info *info, unsigned int max, unsigned int
 	dat = (unsigned short)(min & 0xffff);
 	len = write_var(buf, t_screen->warn_min.variable_addr, dat);
 	copy_to_buf(info, buf, len);
+	dat = ((unsigned short)(min & 0xffff) + (unsigned short)(max & 0xffff)) / 2;
+	len = write_var(buf, t_screen->target.variable_addr, dat);
+	copy_to_buf(info, buf, len);
+	dat -= (unsigned short)(min & 0xffff);
+	len = write_var(buf, t_screen->offset.variable_addr, dat);
+	copy_to_buf(info, buf, len);
 //	float y1;
 //	struct warn_frame *warn = &(t_screen->warn); 
 //	struct curve_frame *curve_frame = warn->curve_frame;
@@ -446,6 +452,11 @@ int temperature_screen_init()
 	t_screen->warn_min.variable_addr = 0x5440;
 	t_screen->warn_icon.describe_addr = 0x1000;
 	t_screen->warn_icon.variable_addr = 0x5000;
+	
+	t_screen->target.describe_addr = 0x1620;
+	t_screen->target.variable_addr = 0x5620;
+	t_screen->offset.describe_addr = 0x1640;
+	t_screen->offset.variable_addr = 0x5640;
 	
 	t_screen->curve.describe_addr = 0x1020;
 	t_screen->curve.curve_frame = &temperature_curve_frame;
