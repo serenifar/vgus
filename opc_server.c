@@ -32,6 +32,266 @@ static void end_opc_server()
 }
 
 static void 
+get_bridge_AR(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	
+	char buf[64];
+	snprintf(buf, 64, "%d", get_bridge_status());
+	UA_Server *server = (UA_Server *)handle;
+	UA_String valueStr;
+	valueStr.data = (UA_Byte*)buf;
+	valueStr.length = strlen(buf);
+	UA_Variant value;
+	UA_Variant_setScalarCopy(&value, &valueStr,
+				 &UA_TYPES[UA_TYPES_STRING]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "bridge_AR");
+	UA_Server_writeValue(server, tempNodeId, value);
+}
+
+
+static void
+addGetBridgeCallback_AR(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	char *buf = "0"; 
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "bridge_AR");
+	UA_String relayStr;
+	relayStr.data = (UA_Byte *)buf;
+	relayStr.length = strlen((char *)buf);
+
+	UA_Variant_setScalar(&attr.value, &relayStr, &UA_TYPES[UA_TYPES_STRING]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "bridge_AR");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "bridge_AR");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_bridge_AR;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+static void 
+get_heater_AR(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	
+	char buf[64];
+	snprintf(buf, 64, "%d",(unsigned char)get_heater_status());
+	UA_Server *server = (UA_Server *)handle;
+	UA_String valueStr;
+	valueStr.data = (UA_Byte*)buf;
+	valueStr.length = strlen(buf);
+	UA_Variant value;
+	UA_Variant_setScalarCopy(&value, &valueStr,
+				 &UA_TYPES[UA_TYPES_STRING]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "heater_AR");
+	UA_Server_writeValue(server, tempNodeId, value);
+}
+
+
+static void
+addGetHeaderCallback_AR(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	char *buf = "0"; 
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "heater_AR");
+	UA_String relayStr;
+	relayStr.data = (UA_Byte *)buf;
+	relayStr.length = strlen((char *)buf);
+
+	UA_Variant_setScalar(&attr.value, &relayStr, &UA_TYPES[UA_TYPES_STRING]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "heater_AR");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "heater_AR");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_heater_AR;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+static void 
+get_fan_AR(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	
+	char buf[64];
+	snprintf(buf, 64, "%d",(unsigned char)get_cool_status());
+	UA_Server *server = (UA_Server *)handle;
+	UA_String valueStr;
+	valueStr.data = (UA_Byte*)buf;
+	valueStr.length = strlen(buf);
+	UA_Variant value;
+	UA_Variant_setScalarCopy(&value, &valueStr,
+				 &UA_TYPES[UA_TYPES_STRING]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "fan_AR");
+	UA_Server_writeValue(server, tempNodeId, value);
+}
+
+
+static void
+addGetFanCallback_AR(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	char *buf = "0"; 
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "fan_AR");
+	UA_String relayStr;
+	relayStr.data = (UA_Byte *)buf;
+	relayStr.length = strlen((char *)buf);
+
+	UA_Variant_setScalar(&attr.value, &relayStr, &UA_TYPES[UA_TYPES_STRING]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "fan_AR");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "fan_AR");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_fan_AR;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+static void 
+get_relay_AR(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	
+	char buf[64];
+	int i = 0;
+	char relay = get_relay_value();
+	for (i = 0; i < 8; i++){
+		buf[i] = (relay & (0x1 << i)) ? '1' : '0';
+	}
+	buf[i] = '\0';
+	UA_Server *server = (UA_Server *)handle;
+	UA_String valueStr;
+	valueStr.data = (UA_Byte*)buf;
+	valueStr.length = strlen(buf);
+	UA_Variant value;
+	UA_Variant_setScalarCopy(&value, &valueStr,
+				 &UA_TYPES[UA_TYPES_STRING]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "relay_AR");
+	UA_Server_writeValue(server, tempNodeId, value);
+}
+
+
+static void
+addGetRelayCallback_AR(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	char *buf = "00000000"; 
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "relay_AR");
+	UA_String relayStr;
+	relayStr.data = (UA_Byte *)buf;
+	relayStr.length = strlen((char *)buf);
+
+	UA_Variant_setScalar(&attr.value, &relayStr, &UA_TYPES[UA_TYPES_STRING]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "relay_AR");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "relay_AR");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_relay_AR;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+static void 
+get_temperature_AR(void *handle, const UA_NodeId nodeId,
+		      const UA_Variant *data, const UA_NumericRange *range){
+	
+	char buf[64];
+	UA_Server *server = (UA_Server *)handle;
+	UA_String temperature;
+	snprintf(buf, 64,"%2.1f", modbus_get_temperature()/10.0);
+	temperature.data = (UA_Byte*)buf;
+	temperature.length = strlen(buf);
+	UA_Variant value;
+	UA_Variant_setScalarCopy(&value, &temperature,
+				 &UA_TYPES[UA_TYPES_STRING]);
+	UA_NodeId tempNodeId = UA_NODEID_STRING(1, "temperature_AR");
+	UA_Server_writeValue(server, tempNodeId, value);
+}
+
+
+static void
+addGetTemperatureCallback_AR(UA_Server *server)
+{
+	/*1. Define the node attributes */
+	char *buf = "24.3";
+	UA_VariableAttributes attr;
+	UA_VariableAttributes_init(&attr);
+	attr.displayName = UA_LOCALIZEDTEXT("en_US", "temperature_AR");
+	UA_String temperature;
+	temperature.data = (UA_Byte *)buf;
+	temperature.length = strlen((char *)buf);
+
+	UA_Variant_setScalar(&attr.value, &temperature, &UA_TYPES[UA_TYPES_STRING]);
+	
+	/*2. Define where the node shall be added with which browsename*/
+	UA_NodeId newNodeId = UA_NODEID_STRING(1, "temperature_AR");
+	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+	UA_NodeId variableType = UA_NODEID_NULL;
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "temperature_AR");
+
+	/*3. Add the node*/
+	UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+			          parentReferenceNodeId,browseName,
+				  variableType, attr, NULL, NULL);
+	
+	/*4. add callBack func*/
+	UA_ValueCallback callback;
+	callback.handle = server;
+	callback.onRead = get_temperature_AR;
+	callback.onWrite = NULL;
+	UA_Server_setVariableNode_valueCallback(server, newNodeId, callback);
+}
+static void 
 get_temperature(void *handle, const UA_NodeId nodeId,
 		      const UA_Variant *data, const UA_NumericRange *range){
 	block_client();
@@ -263,9 +523,10 @@ int start_opc_server(struct send_info *info_458, struct send_info *info_232)
 	opc_info_458 = info_458;
 	UA_ServerNetworkLayer nl;
 	UA_ServerConfig config = UA_ServerConfig_standard;
-        
+	        
 	nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16666);
 	
+	config.enableAnonymousLogin = true;
 	config.networkLayers = &nl;
 	config.networkLayersSize = 1;
 	config.logger = NULL;
@@ -278,6 +539,12 @@ int start_opc_server(struct send_info *info_458, struct send_info *info_232)
 	addSetWarnCallback(server);
 	addSetCoolingCallback(server);
 	addSetHeatingCallback(server);
+	
+	addGetTemperatureCallback_AR(server);
+	addGetRelayCallback_AR(server);
+	addGetHeaderCallback_AR(server);
+	addGetBridgeCallback_AR(server);
+	addGetFanCallback_AR(server);
 
 	UA_StatusCode retval = UA_Server_run(server, &opc_running);
 	UA_Server_delete(server);

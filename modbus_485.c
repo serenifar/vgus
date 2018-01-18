@@ -46,10 +46,11 @@ struct modbus_info
 	unsigned int heating_save;
 	unsigned int cooling_save;
 	unsigned int extremity;
+	unsigned int statistics;
 
 };
 
-struct modbus_info modbus_info = {0, 750, 230, 0, 0, 0, 0,500};
+struct modbus_info modbus_info = {0, 750, 230, 0, 0, 0, 0,500, 0};
 
 static int get_temperature(struct send_info *info_485)
 {
@@ -60,6 +61,7 @@ static int get_temperature(struct send_info *info_485)
 	unsigned short crc;
 	copy_to_buf(info_485, sbuf, sizeof(sbuf));
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
+	modbus_info.statistics++;
        	if (len < 2){
 		return -1;
 	}
@@ -107,12 +109,26 @@ static int get_temperature(struct send_info *info_485)
 //	sw |= modbus_info.cooling_score;
 //	return sw;
 //}
-static char get_relay_value()
+char get_relay_value()
 {
 	char sw = 0;
 	sw |= modbus_info.heating_score > 0 ? 1 << 4  : 0;
 	sw |= modbus_info.cooling_score > 0 ? 1 << 2  : 0;
 	return sw;
+}
+
+char get_cool_status()
+{
+	return modbus_info.cooling_score;
+}
+char get_heater_status()
+{
+	return modbus_info.heating_score;
+}
+
+unsigned int  get_bridge_status()
+{
+	return modbus_info.statistics;
 }
 unsigned char relay_buf[] = {0x02, 0x0F, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00};
 int set_relay(struct send_info *info_485)
@@ -131,6 +147,7 @@ int set_relay(struct send_info *info_485)
 	relay_buf[9] = crc & 0xff;
 	copy_to_buf(info_485, (char*)relay_buf, sizeof(relay_buf));
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
+	 modbus_info.statistics++;
 
        	if(len < 0){
 		printf("send error\n");
@@ -174,6 +191,7 @@ void set_temp_sensor_breath_led(struct send_info *info_485, int breath_led)
 		copy_to_buf(info_485, sbufclose, sizeof(sbufclose));
 
 	len = send_and_recv_data(info_485, (char *)rbuf, 32);
+	modbus_info.statistics++;
        	if (len < 2){
 		return;
 	}
